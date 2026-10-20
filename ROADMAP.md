@@ -10,11 +10,13 @@
 
 **Goal:** Environment ready, so code lands on solid ground.
 
-- [ ] **0.1** Create GitHub repo `budgetbuddy` (public) — *Done when:* repo exists
-- [ ] **0.2** Install Python 3.10+, create venv, `pip install -r requirements.txt` — *Done when:* `python -c "import uagents"` works
-- [ ] **0.3** Copy `.env.example` → `.env`, invent your `HOST_SEED` — *Done when:* `.env` exists, **not committed**
-- [ ] **0.4** Get free Gemini API key ([aistudio.google.com](https://aistudio.google.com)) — *Done when:* key pasted in `.env`
-- [ ] **0.5** Read the 6-turn demo script — know where you're heading — *Done when:* you can recite the demo flow
+- [ ] **0.1** Create GitHub repo `budgetbuddy` (public) — ⏳ **local repo ready** (`git init`, `main` branch, initial commit `9bb46f6`); **remaining: you** `gh auth login` then create+push the public repo
+- [x] **0.2** Install Python 3.10+, create venv, `pip install -r requirements.txt` — ✅ Python 3.14.8 + `.venv`, `import uagents` works (uagents 0.26.1)
+- [x] **0.3** Copy `.env.example` → `.env`, invent your `HOST_SEED` — ✅ `.env` exists with generated seed, **not committed** (git-ignored)
+- [ ] **0.4** Get free Gemini API key ([aistudio.google.com](https://aistudio.google.com)) — ⏳ **remaining: you** paste key into `.env` (`GEMINI_API_KEY=`); app runs fine without it (graceful degradation)
+- [x] **0.5** Read the 6-turn demo script — know where you're heading — ✅ all 6 turns verified via `tests/demo.py`
+
+> **Phase 0 status: environment ready.** 0.2, 0.3, 0.5 done by me. **Two steps remain for you:** 0.1 (push to GitHub) and 0.4 (paste Gemini key). Neither blocks development — Phase 1 and 2 are already built and green.
 
 ---
 
