@@ -80,3 +80,11 @@ class Query(Model):
 
 class Response(Model):
     reply: str
+
+
+# ── Health (for preflight / uptime monitoring) ────────────────────────
+
+class HealthResponse(Model):
+    status: str
+    agents: dict
+    session_ttl_hours: int

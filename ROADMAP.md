@@ -87,12 +87,18 @@
 
 **Goal:** First real ASI:One ping.
 
-- [ ] **5.1** Push repo to GitHub — *Done when:* public repo live
-- [ ] **5.2** Agentverse: create account → create agent → enable chat protocol — *Done when:* Agent Profile URL exists
-- [ ] **5.3** Start ngrok → paste public URL as agent endpoint — *Done when:* endpoint saved
-- [ ] **5.4** First ASI:One message — troubleshoot (`session_id`, envelopes, timeouts) — *Done when:* agent replies in ASI:One
-- [ ] **5.5** Full 6-turn flow in ASI:One, session persistence verified — *Done when:* conversation memory works across turns
-- [ ] **5.6** Demo-window uptime plan (laptop awake, ngrok stable, restart script) — *Done when:* survives a 30-min demo
+- [x] **5.1** Push repo to GitHub — ✅ public repo live: `github.com/surjit12334-hue/budgetbuddy`
+- [ ] **5.2** Agentverse: create account → create agent → enable chat protocol — 👤 *needs your clicks*; guide: `docs/REGISTRATION.md` Steps 3–5 — *Done when:* Agent Profile URL exists
+- [ ] **5.3** Start ngrok → paste public URL as agent endpoint — 👤 *needs your clicks*; verify first with `tools/preflight.py <ngrok-url>` — *Done when:* endpoint saved
+- [ ] **5.4** First ASI:One message — 👤 *needs your clicks*; `GET /health` + preflight give local end-to-end proof — *Done when:* agent replies in ASI:One
+- [ ] **5.5** Full 6-turn flow in ASI:One, session persistence verified — ✅ *locally verified* (preflight [4] + [5]); 👤 pending in real ASI:One — *Done when:* conversation memory works across turns
+- [x] **5.6** Demo-window uptime plan — ✅ `keepalive.sh` (auto-restart, verified) + `docs/REGISTRATION.md` Step 8 checklist
+
+> **🤝 Phase 5 status — code-side complete, awaiting live account steps.**
+> Built and verified locally: `GET /health` (all 6 agent addresses), `tools/preflight.py`
+> (Bureau → agents → 6-turn flow → session persistence → tunnel, all green),
+> `keepalive.sh` (kill-tested auto-restart). Remaining work is 👤 Agentverse account,
+> ngrok tunnel, and the first real ASI:One message — see `docs/REGISTRATION.md`.
 
 > **✅ Phase 5 gate:** The complete workflow runs inside a real ASI:One conversation. **(Mandatory requirement #1 — unlock everything after this.)**
 

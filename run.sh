@@ -24,4 +24,4 @@ if [ ! -x "$PYTHON" ]; then
   exit 1
 fi
 
-exec "$PYTHON" -m agents.run
+exec "$PYTHON" -u -m agents.run

@@ -128,6 +128,23 @@ curl -X POST http://localhost:8001/submit \
   -d '{"session_id":"demo","text":"How am I doing?"}'
 ```
 
+### Going live (ASI:One)
+
+To expose BudgetBuddy to Agentverse / ASI:One, tunnel the Bureau and verify
+before you touch the network:
+
+```bash
+./keepalive.sh                     # auto-restarts the Bureau if it ever crashes
+ngrok http 8001                    # in another terminal — copy the https URL
+
+.venv/bin/python tools/preflight.py https://YOUR-URL.ngrok-free.app
+```
+
+`preflight.py` checks the Bureau, all 6 agents, the local round-trip, the full
+6-turn flow, session persistence, and the public tunnel — then prints the exact
+endpoint URL to paste into Agentverse. Step-by-step instructions:
+[`docs/REGISTRATION.md`](docs/REGISTRATION.md).
+
 ---
 
 ## The $0 Stack

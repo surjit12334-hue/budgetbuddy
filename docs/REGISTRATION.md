@@ -64,6 +64,19 @@ curl -X POST https://abcd-12-34-56-78.ngrok-free.app/submit \
   -d '{"session_id":"t","text":"Help"}'
 ```
 
+### ✅ Recommended: run the preflight checker
+
+Before touching Agentverse, verify *everything* at once — Bureau, all 6 agents,
+the 6-turn flow, session persistence, and the tunnel:
+
+```bash
+.venv/bin/python tools/preflight.py https://abcd-12-34-56-78.ngrok-free.app
+```
+
+If it prints **`ALL CHECKS PASSED — ready for ASI:One`**, the only thing left is
+Agentverse configuration (Step 3 onward). It also prints the exact URL to paste
+in Step 4. If a check fails, the output tells you which layer broke.
+
 ---
 
 ## Step 3 — Create the agent on Agentverse
@@ -177,16 +190,10 @@ A 30-minute demo needs the agent alive the whole time.
 - [ ] **Disable sleep** on your laptop (Screen Locking / Power settings)
 - [ ] Keep **both** terminals open (Bureau + ngrok)
 - [ ] If the ngrok URL changes, **re-do Step 4** — this is the #1 cause of mid-demo failure
-- [ ] Optional restart script:
+- [ ] Run the Bureau under the bundled keepalive wrapper so a crash doesn't take you offline:
 
 ```bash
-#!/usr/bin/env bash
-# restart.sh — bounce the Bureau if it dies
-while true; do
-  ./run.sh || true
-  echo "Bureau exited — restarting in 3s"
-  sleep 3
-done
+./keepalive.sh     # restarts the Bureau automatically if it exits; Ctrl-C to stop
 ```
 
 - [ ] Do a **cold dry run**: close everything, follow this guide from Step 1, confirm it works — then you can trust it live.

@@ -5,6 +5,7 @@ correct sub-agent through the AgentBus (15 s timeout), and falls back
 to in-process core modules when a sub-agent is unreachable.
 """
 
+import os
 import re
 import uuid
 from datetime import datetime
@@ -16,7 +17,7 @@ from core.parser import parse_any
 from core.models import Goal
 
 from .messages import (
-    Query, Response,
+    Query, Response, HealthResponse,
     IngestRequest, IngestResponse,
     AnalysisRequest, AnalysisResponse,
     CoachRequest, CoachResponse,
@@ -297,6 +298,28 @@ async def _submit(ctx: Context, req: Query) -> Response:
 
     # ── HELP ──
     return Response(reply=_HELP_TEXT)
+
+
+# ── health endpoint (preflight / uptime monitoring) ───────────────────
+
+@host_agent.on_rest_get("/health", HealthResponse)
+async def _health(ctx: Context) -> HealthResponse:
+    from .subagents import (
+        ingest_agent, analyst_agent, coach_agent,
+        goal_agent, splitter_agent,
+    )
+    return HealthResponse(
+        status="ok",
+        agents={
+            "host": host_agent.address,
+            "ingest": ingest_agent.address,
+            "analyst": analyst_agent.address,
+            "coach": coach_agent.address,
+            "goal": goal_agent.address,
+            "splitter": splitter_agent.address,
+        },
+        session_ttl_hours=int(os.environ.get("SESSION_TTL_HOURS", "24")),
+    )
 
 
 # Restore init flag (see comment above)
