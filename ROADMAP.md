@@ -10,7 +10,7 @@
 
 **Goal:** Environment ready, so code lands on solid ground.
 
-- [ ] **0.1** Create GitHub repo `budgetbuddy` (public) — ⏳ **local repo ready** (`git init`, `main` branch, initial commit `9bb46f6`); **remaining: you** `gh auth login` then create+push the public repo
+- [x] **0.1** Create GitHub repo `budgetbuddy` (public) — ✅ pushed to https://github.com/surjit12334-hue/budgetbuddy (`main` @ `ed5ae2d`, via SSH)
 - [x] **0.2** Install Python 3.10+, create venv, `pip install -r requirements.txt` — ✅ Python 3.14.8 + `.venv`, `import uagents` works (uagents 0.26.1)
 - [x] **0.3** Copy `.env.example` → `.env`, invent your `HOST_SEED` — ✅ `.env` exists with generated seed, **not committed** (git-ignored)
 - [ ] **0.4** Get free Gemini API key ([aistudio.google.com](https://aistudio.google.com)) — ⏳ **remaining: you** paste key into `.env` (`GEMINI_API_KEY=`); app runs fine without it (graceful degradation)
