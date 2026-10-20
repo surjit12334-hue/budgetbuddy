@@ -13,10 +13,10 @@
 - [x] **0.1** Create GitHub repo `budgetbuddy` (public) — ✅ pushed to https://github.com/surjit12334-hue/budgetbuddy (`main` @ `ed5ae2d`, via SSH)
 - [x] **0.2** Install Python 3.10+, create venv, `pip install -r requirements.txt` — ✅ Python 3.14.8 + `.venv`, `import uagents` works (uagents 0.26.1)
 - [x] **0.3** Copy `.env.example` → `.env`, invent your `HOST_SEED` — ✅ `.env` exists with generated seed, **not committed** (git-ignored)
-- [ ] **0.4** Get free Gemini API key ([aistudio.google.com](https://aistudio.google.com)) — ⏳ **remaining: you** paste key into `.env` (`GEMINI_API_KEY=`); app runs fine without it (graceful degradation)
+- [x] **0.4** Get free Gemini API key ([aistudio.google.com](https://aistudio.google.com)) — ✅ key in `.env`; verified working (`gemini-3.8-flash`); model updated since `gemini-2.0-flash` was retired. Google free tier currently intermittent (503/timeouts) → deterministic fallback covers it.
 - [x] **0.5** Read the 6-turn demo script — know where you're heading — ✅ all 6 turns verified via `tests/demo.py`
 
-> **Phase 0 status: environment ready.** 0.2, 0.3, 0.5 done by me. **Two steps remain for you:** 0.1 (push to GitHub) and 0.4 (paste Gemini key). Neither blocks development — Phase 1 and 2 are already built and green.
+> **✅ Phase 0 COMPLETE.** Repo live at https://github.com/surjit12334-hue/budgetbuddy, environment ready, `.env` configured with a working Gemini key. Note: `gemini-2.0-flash` was retired by Google — switched to `gemini-3.8-flash`; the free tier is intermittently slow, and the LLM chain degrades to deterministic insights in ~12 s.
 
 ---
 
