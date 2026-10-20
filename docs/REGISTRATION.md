@@ -7,14 +7,31 @@
 
 ---
 
+## How the connection works (read this first)
+
+BudgetBuddy uses the **Agentverse mailbox**, not a public tunnel.
+
+The host agent **dials out** to Agentverse and keeps that connection open.
+Agentverse then relays ASI:One messages to it. This means:
+
+- ✅ **No ngrok.** No public URL, no port forwarding, no URL rotation.
+- ✅ **No firewall changes.** It's an outbound connection.
+- ✅ **Stable for the demo window.** The connection re-establishes itself.
+
+> **Why not a tunnel?** uAgents *reserves* `/submit` and rejects it from any
+> non-local client (`uagents/asgi.py`), so a custom REST route can never be
+> reached through a tunnel or from ASI:One. The mailbox + Chat Protocol is the
+> mechanism uAgents is designed around — and it satisfies the Phase 5 gate.
+
+---
+
 ## Prerequisites
 
-Before you start:
-
 - [ ] Repo pushed to GitHub (done: `github.com/surjit12334-hue/budgetbuddy`)
-- [ ] The Bureau runs locally: `./run.sh` prints 6 agent addresses
-- [ ] You can hit it: `curl -X POST http://localhost:8001/submit -H "Content-Type: application/json" -d '{"session_id":"x","text":"Help"}'` returns a reply
-- [ ] `ngrok` installed ([download](https://ngrok.com/download)) and logged in (`ngrok config add-authtoken YOUR_TOKEN`)
+- [ ] Python venv set up (`.venv`)
+- [ ] An internet connection (the mailbox needs to reach `agentverse.ai`)
+
+You do **not** need ngrok, a domain, or a public IP.
 
 ---
 
@@ -24,145 +41,145 @@ In a dedicated terminal (keep it open):
 
 ```bash
 cd budgetbuddy
-./run.sh
+./keepalive.sh
 ```
 
-You'll see six addresses, e.g.:
+Look for these two lines — they are the proof the mailbox connected:
+
+```
+INFO:  [ host]: Starting mailbox client for https://agentverse.ai
+INFO:  [host]: Agent registration status updated to active
+```
+
+You'll also see the six agent addresses. **Copy the host agent address** —
+you need it in Step 4:
 
 ```
 Host agent address:  agent1qwv44y4c4yz47j58zhylm7rnev6qk4su0km42k69f8345ytt5s90jyxgaa9
-Ingest agent:        agent1qgusexn46534mpe5vdjumfv6yhaynr6m8w7yfvw5ul5r8qsd7djrz7d9v9u
-...
-REST endpoint:  POST http://localhost:8001/submit
 ```
 
-**Copy the host agent address** — you need it in Step 4.
+> If you see `Agent mailbox not found: create one using the agent inspector`,
+> that's expected on the very first run — Step 4 fixes it. It is **not** an
+> error, and you won't need to restart anything after creating the mailbox.
 
 ---
 
-## Step 2 — Expose it with ngrok
+## Step 2 — Verify locally (do not skip)
 
 In a second terminal:
 
 ```bash
-ngrok http 8001
+cd budgetbuddy
+.venv/bin/python tools/preflight.py
 ```
 
-Copy the forwarding URL, e.g.:
+You must see **`ALL CHECKS PASSED — ready for ASI:One`**. This exercises the
+Bureau, all 6 agents, the full 6-turn flow, and session persistence.
 
-```
-Forwarding    https://abcd-12-34-56-78.ngrok-free.app -> http://localhost:8001
-```
-
-**Keep this terminal open.** The URL changes every time you restart ngrok on the free plan.
-
-Quick check that the tunnel reaches the app:
-
-```bash
-curl -X POST https://abcd-12-34-56-78.ngrok-free.app/submit \
-  -H "Content-Type: application/json" \
-  -d '{"session_id":"t","text":"Help"}'
-```
-
-### ✅ Recommended: run the preflight checker
-
-Before touching Agentverse, verify *everything* at once — Bureau, all 6 agents,
-the 6-turn flow, session persistence, and the tunnel:
-
-```bash
-.venv/bin/python tools/preflight.py https://abcd-12-34-56-78.ngrok-free.app
-```
-
-If it prints **`ALL CHECKS PASSED — ready for ASI:One`**, the only thing left is
-Agentverse configuration (Step 3 onward). It also prints the exact URL to paste
-in Step 4. If a check fails, the output tells you which layer broke.
+If something fails, fix it here — before touching Agentverse.
 
 ---
 
-## Step 3 — Create the agent on Agentverse
+## Step 3 — Confirm the agent is registered
+
+Ask the Almanac (the public agent registry) about your host address:
+
+```bash
+curl -s https://agentverse.ai/v1/almanac/agents/agent1qwv44y4c4yz47j58zhylm7rnev6qk4su0km42k69f8345ytt5s90jyxgaa9
+```
+
+**Expected** — note `"status":"active"`, `"type":"mailbox"`, and two protocols:
+
+```json
+{
+  "status": "active",
+  "type": "mailbox",
+  "address": "agent1qwv44y4c4yz47j58zhylm7rnev6qk4su0km42k69f8345ytt5s90jyxgaa9",
+  "endpoints": [{"url": "https://agentverse.ai/v2/agents/mailbox/submit"}],
+  "protocols": ["30a801ed...", "b5165e61..."]
+}
+```
+
+If `status` is not `active`, wait a few seconds and retry — registration
+happens shortly after startup.
+
+---
+
+## Step 4 — Agentverse account + create the mailbox
+
+This is the part that needs **you** — it cannot be automated.
 
 1. Go to **https://agentverse.ai** and sign in (create a free account if needed).
 2. In the sidebar click **Agents** → **My Agents**.
-3. Click **+ Create Agent** (may appear as **Launch an Agent**).
-4. Choose **Blank Agent** (not a template).
-5. Fill in:
+3. Find your agent. Because it self-registered, it may already appear; if not,
+   click **+ Create Agent** → **Blank Agent** and paste the **host agent
+   address** from Step 1.
+4. Fill in / confirm:
    - **Name:** `BudgetBuddy`
    - **Description:** *A multi-agent personal-finance coach. Paste your bank data, get analysis, set savings goals, split bills, and unlock Pro — all in chat.*
    - **Visibility:** **Public** (a judge must be able to see it)
-6. Click **Create**.
+5. Open the agent's page and go to the **Agent Inspector** / **Mailbox** tab.
+6. Click **Create Mailbox**.
 
-You now have an **Agent Profile URL** like:
+> ✅ **Done when:** the mailbox exists. The Bureau terminal will stop logging
+> `Agent mailbox not found` — **within seconds, no restart needed**.
 
-```
-https://agentverse.ai/agents/details/agent1qwv44y4...
-```
-
-**Save this URL** — it's deliverable 7.4.
+7. Copy the **Agent Profile URL**:
+   ```
+   https://agentverse.ai/agents/details/agent1qwv44y4c4yz47j58zhylm7rnev6qk4su0km42k69f8345ytt5s90jyxgaa9
+   ```
+   **Save this** — it's deliverable 7.4.
 
 ---
 
-## Step 4 — Connect your agent
+## Step 5 — Confirm the chat protocol is enabled
 
-Agentverse needs to know where your agent lives.
+On the agent's page:
 
-1. On the agent's page, open the **Deploy** / **Connect** tab.
-2. Select **Redirect to an external URL** (or **HTTP endpoint**).
-3. Paste your ngrok URL + `/submit`:
-   ```
-   https://abcd-12-34-56-78.ngrok-free.app/submit
-   ```
-4. **Agent address:** paste the **host agent address** you copied in Step 1.
-5. Click **Save** / **Connect**.
+1. Open the **Protocols** (or **Chat**) tab.
+2. You should see the chat protocol listed (digest starting `30a801ed…`).
+3. Enable **Chat Protocol** if it isn't already.
+4. Save.
 
-> ⚠️ **Important:** use the **host** agent's address. The host is the one that
-> serves `/submit`; the sub-agents are internal to the Bureau.
-
----
-
-## Step 5 — Enable the chat protocol
-
-So ASI:One can talk to your agent:
-
-1. Open the **Protocols** (or **Chat**) tab on the agent page.
-2. Enable **Chat Protocol**.
-3. Save.
+BudgetBuddy registers the protocol automatically at startup, so it normally
+just appears here.
 
 ---
 
 ## Step 6 — First ASI:One message
 
 1. Go to **https://asi1.ai** (ASI:One).
-2. Find your agent — search **BudgetBuddy**, or use the Agent Profile URL.
+2. Find your agent — search **BudgetBuddy**, or open your Agent Profile URL.
 3. Start a chat and send:
 
    ```
    Help
    ```
 
-**Expected:** the BudgetBuddy help menu.
+**Expected:** the BudgetBuddy help menu. ✅ **Phase 5 gate reached.**
 
 ### If it doesn't reply — troubleshoot
 
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
-| No reply at all | Bureau not running | Re-check `./run.sh` terminal |
-| No reply | ngrok URL wrong/stale | Re-copy the URL from the ngrok terminal |
-| 404 / "unable to route" | Wrong agent address | Use the **host** address from Step 1 |
-| Works in curl, not ASI:One | Chat protocol not enabled | Redo Step 5 |
-| Intermittent timeouts | ngrok free-tier hiccups | Send again; see Step 8 |
-| Envelope/session errors | `session_id` mismatch | ASI:One sets this; check host logs |
+| No reply | Bureau not running | Re-check the `./keepalive.sh` terminal |
+| No reply | Mailbox not created | Redo Step 4.6 |
+| `mailbox not found` still logging | Mailbox not created yet | Redo Step 4.6 |
+| Works locally, not ASI:One | Chat protocol not enabled | Redo Step 5 |
+| No reply, no logs at all | Request never arrived | Re-check Step 3 (`status: active`) |
+| Intermittent drop | Transient network | Send again; mailbox reconnects |
+| Memory lost between turns | `session_id` collapse | Check host logs — each chat sender gets `asi1-<address>`, so look for a changing value |
 
-Watch the Bureau terminal — every request logs here:
+Watch the Bureau terminal — every chat message logs here:
 
 ```
-[host] ← external  session=...  text='Help'
-[bus] → ingest  IngestRequest
-[ingest] → host  38 txns parsed
-[bus] ← ingest  IngestResponse
+[chat] ← asi1  session=asi1-agent1...  text='Help'
+[host] intent: help
+[chat] → asi1  461 chars
 ```
 
-No log line = the request never arrived (ngrok/tunnel issue).
-Log line but no reply = look further down the log.
+- **`[chat] ←` appears** → ASI:One reached you. Any issue is downstream.
+- **`[chat] ←` does not appear** → the message never arrived (mailbox/Agentverse side).
 
 ---
 
@@ -170,7 +187,7 @@ Log line but no reply = look further down the log.
 
 Run the whole flow in ASI:One:
 
-1. Paste the 38-row sample CSV
+1. Paste the 38-row sample CSV (`samples/sample_bank.csv`)
 2. `How am I doing?`
 3. `What subscriptions do I have?`
 4. `I want to save $3000 by August`
@@ -178,8 +195,8 @@ Run the whole flow in ASI:One:
 6. `How do I unlock Pro?`
 
 **Persistence check:** turn 2 must "remember" turn 1's data. If it says
-*"I don't have any transactions yet"*, the `session_id` isn't being kept
-stable across turns — check host logs for a changing session value.
+*"I don't have any transactions yet"*, the chat sender address isn't stable
+across turns — check host logs for a changing `asi1-…` session value.
 
 ---
 
@@ -188,15 +205,13 @@ stable across turns — check host logs for a changing session value.
 A 30-minute demo needs the agent alive the whole time.
 
 - [ ] **Disable sleep** on your laptop (Screen Locking / Power settings)
-- [ ] Keep **both** terminals open (Bureau + ngrok)
-- [ ] If the ngrok URL changes, **re-do Step 4** — this is the #1 cause of mid-demo failure
-- [ ] Run the Bureau under the bundled keepalive wrapper so a crash doesn't take you offline:
+- [ ] Keep the Bureau terminal open, running `./keepalive.sh` (auto-restarts on crash)
+- [ ] Confirm **internet stays up** — the mailbox needs it (no tunnel to babysit)
+- [ ] Do a **cold dry run**: close everything, follow this guide from Step 1, confirm it works — then you can trust it live
 
-```bash
-./keepalive.sh     # restarts the Bureau automatically if it exits; Ctrl-C to stop
-```
-
-- [ ] Do a **cold dry run**: close everything, follow this guide from Step 1, confirm it works — then you can trust it live.
+> Unlike a tunnel, there is **no URL to re-paste** if something restarts.
+> The mailbox reconnects on its own — that's why this approach is safer
+> for a live demo.
 
 ---
 
@@ -205,7 +220,10 @@ A 30-minute demo needs the agent alive the whole time.
 When you reach the payment step:
 
 1. Go to the Fetch.ai **testnet faucet** (linked from the ASI:One / Agentverse docs).
-2. Enter your agent's wallet address (shown in Agentverse under the agent's **Wallet**).
+2. Enter your agent's wallet address. It's printed at startup:
+   ```
+   WARNING:  [ host]: To enable contract registration, send funds to wallet address: fetch1...
+   ```
 3. Request testnet tokens (usually `TESTFET`).
 4. Use them for the Payment Protocol request in Phase 6.
 
@@ -229,8 +247,26 @@ Collect these for the submission (Phase 7):
 | `HOST_SEED` | *(required)* | Unique seed phrase → deterministic agent address |
 | `HOST_PORT` | `8001` | Port the Bureau serves on |
 | `HOST_ENDPOINT` | `http://localhost:8001` | Local endpoint |
+| `ENABLE_MAILBOX` | `true` | Connect the host to the Agentverse mailbox |
+| `ENABLE_AGENTVERSE` | `true` | Register the agent on Agentverse / Almanac |
 | `GEMINI_API_KEY` | *(empty)* | Optional LLM; app works without it |
 | `GEMINI_MODEL` | `gemini-3.8-flash` | Model name |
 | `ENABLE_CARDS` | `false` | Interactive cards (Phase 6) |
 | `SESSION_TTL_HOURS` | `24` | Session/data purge window |
 | `AGENT_TIMEOUT_SECONDS` | `15` | Sub-agent timeout before fallback |
+
+---
+
+## Reference — Local REST endpoint (testing only)
+
+`POST /submit` still works **on localhost** for curl and the test suite:
+
+```bash
+curl -X POST http://localhost:8001/submit \
+  -H "Content-Type: application/json" \
+  -d '{"session_id":"demo","text":"Help"}'
+```
+
+⚠️ **This only works from `localhost`.** uAgents reserves `/submit` and
+rejects external clients, which is exactly why the Chat Protocol + mailbox is
+used for ASI:One.

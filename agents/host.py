@@ -8,10 +8,15 @@ to in-process core modules when a sub-agent is unreachable.
 import os
 import re
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from uagents import Agent, Context, Model
+from uagents.protocol import Protocol
+from uagents_core.contrib.protocols.chat import (
+    ChatMessage, ChatAcknowledgement, TextContent, StartSessionContent,
+    EndSessionContent, chat_protocol_spec,
+)
 
 from core.parser import parse_any
 from core.models import Goal
@@ -73,6 +78,17 @@ host_agent = Agent(
     name="host",
     seed="budgetbuddy host agent seed v1",
     log_level="INFO",
+    # Agentverse mailbox: the agent dials out to Agentverse, so it is
+    # reachable from ASI:One with NO public URL / tunnel required.
+    mailbox=os.environ.get("ENABLE_MAILBOX", "true").lower() == "true",
+    agentverse=os.environ.get("ENABLE_AGENTVERSE", "true").lower() == "true",
+    # Publish a human-readable profile on Agentverse (Phase 5.2).
+    description=(
+        "BudgetBuddy — a multi-agent personal-finance coach. Paste your bank "
+        "data, get analysis, find forgotten subscriptions, set savings goals, "
+        "split bills, and unlock Pro — all in chat."
+    ),
+    publish_agent_details=True,
 )
 
 # uAgents reserves /submit for envelope routing and blocks REST
@@ -80,6 +96,69 @@ host_agent = Agent(
 # the decorator runs, then restore it.  The ASGI server checks
 # localhost before serving reserved paths, so external curl still works.
 host_agent._init_done = False
+
+# Chat Protocol — how ASI:One actually talks to agents.
+_chat_proto = Protocol(spec=chat_protocol_spec)
+
+
+# ── chat protocol handler (ASI:One) ───────────────────────────────────
+
+@_chat_proto.on_message(ChatAcknowledgement)
+async def _on_chat_ack(ctx: Context, sender: str, msg: ChatAcknowledgement) -> None:
+    ctx.logger.debug(f"[chat] ack from {sender} for {msg.acknowledged_msg_id}")
+
+
+@_chat_proto.on_message(ChatMessage)
+async def _handle_chat(ctx: Context, sender: str, msg: ChatMessage) -> None:
+    """Handle a Chat Protocol message from ASI:One.
+
+    Every chat session maps to one BudgetBuddy session_id, so multi-turn
+    memory ("How am I doing?" after pasting data) works exactly as it
+    does locally.
+    """
+    # 1. Acknowledge receipt (required by the chat protocol).
+    await ctx.send(
+        sender,
+        ChatAcknowledgement(
+            timestamp=datetime.now(timezone.utc), acknowledged_msg_id=msg.msg_id
+        ),
+    )
+
+    # 2. Collect the text parts and any session-end signal.
+    text_parts: list[str] = []
+    end_session = False
+    for item in msg.content:
+        if isinstance(item, TextContent):
+            text_parts.append(item.text)
+        elif isinstance(item, EndSessionContent):
+            end_session = True
+        elif isinstance(item, StartSessionContent):
+            ctx.logger.info(f"[chat] start-session from {sender}")
+
+    text = "\n".join(text_parts).strip()
+    sid = f"asi1-{sender}"
+    ctx.logger.info(f"[chat] ← asi1  session={sid}  text={text[:60]!r}")
+
+    if not text:
+        reply = "Send me your transactions, or ask 'How am I doing?' for a summary."
+    else:
+        reply = await route(ctx, sid, text)
+    ctx.logger.info(f"[chat] → asi1  {len(reply)} chars")
+
+    # 3. Send the reply.  If the user ended the session, attach the
+    #    EndSessionContent marker so ASI:One closes cleanly.
+    content = [TextContent(type="text", text=reply)]
+    if end_session:
+        content.append(EndSessionContent(type="end-session"))
+    await ctx.send(
+        sender,
+        ChatMessage(
+            timestamp=datetime.now(timezone.utc), msg_id=uuid.uuid4(), content=content
+        ),
+    )
+
+
+host_agent.include(_chat_proto)
 
 
 # ── fallbacks (in-process, no agent involved) ──────────────────────────
@@ -233,25 +312,27 @@ def _payment_reply() -> str:
     return payments.format_request(req)
 
 
-# ── REST handler ──────────────────────────────────────────────────────
+# ── routing (shared by the REST endpoint and the chat protocol) ───────
+async def route(ctx: Context, session_id: str, text: str) -> str:
+    """Detect intent, route to the right sub-agent, return a reply string.
 
-@host_agent.on_rest_post("/submit", Query, Response)
-async def _submit(ctx: Context, req: Query) -> Response:
-    ctx.logger.info(f"[host] ← external  session={req.session_id}  text={req.text[:60]!r}")
-    intent = detect_intent(req.text)
+    Used by both the local REST endpoint and the ASI:One chat handler,
+    so every transport sees identical behaviour.
+    """
+    intent = detect_intent(text)
     ctx.logger.info(f"[host] intent: {intent}")
     bus = get_bus()
-    sid = req.session_id
+    sid = session_id
 
     # ── INGEST ──
     if intent == INGEST:
         resp = await bus.call(
             ctx, "ingest",
-            IngestRequest(request_id=new_request_id(), session_id=sid, text=req.text),
+            IngestRequest(request_id=new_request_id(), session_id=sid, text=text),
             IngestResponse,
-            fallback=lambda: _fallback_ingest(sid, req.text),
+            fallback=lambda: _fallback_ingest(sid, text),
         )
-        return Response(reply=resp.reply if resp else "Sorry, I couldn't parse that.")
+        return resp.reply if resp else "Sorry, I couldn't parse that."
 
     # ── ANALYSIS ──
     if intent == ANALYSIS:
@@ -262,42 +343,49 @@ async def _submit(ctx: Context, req: Query) -> Response:
             fallback=lambda: _fallback_analysis(sid),
         )
         if resp is None:
-            return Response(reply="Sorry, analysis is unavailable right now.")
-        combined = f"{resp.report}\n\n{'─' * 40}\n\n{resp.insights}" if resp.insights else resp.report
-        return Response(reply=combined)
+            return "Sorry, analysis is unavailable right now."
+        return f"{resp.report}\n\n{'─' * 40}\n\n{resp.insights}" if resp.insights else resp.report
 
     # ── SUBSCRIPTIONS (handled in-process — needs full analysis) ──
     if intent == SUBSCRIPTIONS:
         ctx.logger.info("[host] handling subscriptions in-process")
-        return Response(reply=_subscriptions_reply(sid))
+        return _subscriptions_reply(sid)
 
     # ── GOAL ──
     if intent == GOAL:
         resp = await bus.call(
             ctx, "goal",
-            GoalRequest(request_id=new_request_id(), session_id=sid, text=req.text),
+            GoalRequest(request_id=new_request_id(), session_id=sid, text=text),
             GoalResponse,
-            fallback=lambda: _fallback_goal(sid, req.text),
+            fallback=lambda: _fallback_goal(sid, text),
         )
-        return Response(reply=resp.plan if resp else "Sorry, I couldn't compute that goal.")
+        return resp.plan if resp else "Sorry, I couldn't compute that goal."
 
     # ── SPLIT ──
     if intent == SPLIT:
         resp = await bus.call(
             ctx, "splitter",
-            SplitRequest(request_id=new_request_id(), text=req.text),
+            SplitRequest(request_id=new_request_id(), text=text),
             SplitResponse,
-            fallback=lambda: _fallback_split(req.text),
+            fallback=lambda: _fallback_split(text),
         )
-        return Response(reply=resp.result if resp else "Sorry, I couldn't split that.")
+        return resp.result if resp else "Sorry, I couldn't split that."
 
     # ── PAYMENT (in-process) ──
     if intent == PAYMENT:
         ctx.logger.info("[host] handling payment in-process")
-        return Response(reply=_payment_reply())
+        return _payment_reply()
 
     # ── HELP ──
-    return Response(reply=_HELP_TEXT)
+    return _HELP_TEXT
+
+
+# ── REST handler (local testing / curl only) ──────────────────────────
+
+@host_agent.on_rest_post("/submit", Query, Response)
+async def _submit(ctx: Context, req: Query) -> Response:
+    ctx.logger.info(f"[host] ← external  session={req.session_id}  text={req.text[:60]!r}")
+    return Response(reply=await route(ctx, req.session_id, req.text))
 
 
 # ── health endpoint (preflight / uptime monitoring) ───────────────────

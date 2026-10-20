@@ -78,13 +78,18 @@ The system is split in two halves: a pure-Python **brain** (all the logic, fully
                     in-process fallback → user still gets an answer
 ```
 
-**Every agent runs in one process** via a uAgents `Bureau`. The host is reachable over HTTP; sub-agents are separate uAgents with their own addresses, called with a 15-second timeout. If one fails, the host runs the same logic in-process — so a judge never sees a hang.
+**Every agent runs in one process** via a uAgents `Bureau`. The host is
+reachable two ways: **ASI:One** talks to it over the **Chat Protocol** through
+an **Agentverse mailbox** (an outbound connection — no tunnel needed), while
+local tests and curl use `POST /submit` on localhost. Sub-agents are separate
+uAgents with their own addresses, called with a 15-second timeout. If one
+fails, the host runs the same logic in-process — so a judge never sees a hang.
 
 ### The six agents
 
 | Agent | Wraps | Responsibility |
 |-------|-------|----------------|
-| **host** | `agents/host.py` | REST `/submit`, intent detection, routing, reply composition |
+| **host** | `agents/host.py` | Chat Protocol + `/submit` + `/health`, intent routing, reply composition |
 | **ingest** | `core/parser.py` | CSV & free-text → normalised transactions |
 | **analyst** | `core/analyzer.py` | Totals, savings rate, recurring detection, insights |
 | **coach** | `core/coach.py` | LLM-backed advice, deterministic fallback |
@@ -130,20 +135,30 @@ curl -X POST http://localhost:8001/submit \
 
 ### Going live (ASI:One)
 
-To expose BudgetBuddy to Agentverse / ASI:One, tunnel the Bureau and verify
-before you touch the network:
+BudgetBuddy reaches ASI:One through the **Agentverse mailbox** — the host agent
+dials out to Agentverse, so there is **no tunnel, no public URL, and no
+firewall change**:
 
 ```bash
-./keepalive.sh                     # auto-restarts the Bureau if it ever crashes
-ngrok http 8001                    # in another terminal — copy the https URL
-
-.venv/bin/python tools/preflight.py https://YOUR-URL.ngrok-free.app
+./keepalive.sh                      # auto-restarts the Bureau if it ever crashes
+.venv/bin/python tools/preflight.py # verify everything locally first
 ```
 
-`preflight.py` checks the Bureau, all 6 agents, the local round-trip, the full
-6-turn flow, session persistence, and the public tunnel — then prints the exact
-endpoint URL to paste into Agentverse. Step-by-step instructions:
+Within a few seconds you'll see:
+
+```
+[ host]: Starting mailbox client for https://agentverse.ai
+[host]: Agent registration status updated to active
+```
+
+Then create the mailbox in the Agentverse **Agent Inspector** and chat with the
+agent from ASI:One. Step-by-step instructions, including troubleshooting:
 [`docs/REGISTRATION.md`](docs/REGISTRATION.md).
+
+> **Why not a tunnel?** uAgents reserves `/submit` and rejects it from any
+> non-local client, so a custom REST route can never be reached externally.
+> The Chat Protocol + mailbox is the mechanism uAgents is built around.
+> `POST /submit` remains available on **localhost only**, for tests and curl.
 
 ---
 
@@ -212,6 +227,7 @@ Then, in order:
 .venv/bin/python tests/smoke.py           # 55 assertions — every core module
 .venv/bin/python tests/test_adversarial.py # 45 cases — hostile input, fuzz, 500 rows
 .venv/bin/python tests/test_outage.py      # 14 cases — LLM outage transparency
+.venv/bin/python tests/test_chat.py        # 17 cases — Chat Protocol + sessions
 .venv/bin/python tests/demo.py             # full 6-turn conversation
 ```
 
@@ -223,7 +239,7 @@ For the multi-agent layer (Bureau must be running):
 .venv/bin/python tests/test_fallback.py   # sub-agent-death recovery
 ```
 
-**Current status:** 55/55 smoke · 45/45 adversarial · 14/14 outage · 6/6 fallback · 7/7 HTTP — all green.
+**Current status:** 55/55 smoke · 45/45 adversarial · 14/14 outage · 17/17 chat · 6/6 fallback · 7/7 HTTP — all green.
 
 ---
 
@@ -274,13 +290,16 @@ budgetbuddy/
 │   ├── services.py        # shared singletons
 │   ├── subagents.py       # Ingest, Analyst, Coach, Goal, Splitter
 │   ├── bus.py             # AgentBus: timeout + in-process fallback
-│   ├── host.py            # ACP host, REST /submit
+│   ├── host.py            # ACP host, Chat Protocol, REST /submit + /health
 │   └── run.py             # Bureau entrypoint
 ├── samples/sample_bank.csv
-├── tests/                 # smoke, adversarial, outage, phase2, fallback
-├── tools/redact_csv.py    # anonymise a real export
+├── tests/                 # smoke, adversarial, outage, phase2, fallback, chat
+├── tools/
+│   ├── redact_csv.py      # anonymise a real export
+│   └── preflight.py       # Phase 5 readiness check
 ├── run_local.py           # the terminal simulator
 ├── run.sh / sim.sh        # launchers
+├── keepalive.sh           # auto-restart wrapper for the demo window
 └── ROADMAP.md             # the build plan + progress
 ```
 

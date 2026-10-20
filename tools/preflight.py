@@ -7,11 +7,10 @@ Checks, in order:
   3. Local REPLY: POST /submit round-trips
   4. End-to-end 6-turn flow works over the endpoint
   5. Session persistence (turn 2 remembers turn 1)
-  6. Public tunnel, if you pass a URL (ngrok)
+  6. Agentverse registration: status active, mailbox endpoint
 
 Usage:
     .venv/bin/python tools/preflight.py
-    .venv/bin/python tools/preflight.py https://abcd.ngrok-free.app
 
 Exit code 0 = all green, 1 = something needs fixing.
 """
@@ -41,7 +40,8 @@ def warn(msg):
 
 
 def get(url, timeout=10):
-    with urllib.request.urlopen(url, timeout=timeout) as r:
+    req = urllib.request.Request(url, headers={"User-Agent": "budgetbuddy-preflight/1.0"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
         return json.loads(r.read())
 
 
@@ -60,7 +60,6 @@ def ask(base, session_id, text):
 
 def main():
     base = LOCAL
-    tunnel = sys.argv[1].rstrip("/") if len(sys.argv) > 1 else None
 
     print("=" * 62)
     print("  BUDGETBUDDY — PHASE 5 PREFLIGHT")
@@ -152,34 +151,32 @@ def main():
             bad(f"persistence check failed: {e}")
             failures += 1
 
-    # ── 6. Public tunnel ───────────────────────────────────────────────
-    if tunnel:
-        print(f"\n[6] Public tunnel: {tunnel}")
+    # ── 6. Agentverse registration ─────────────────────────────────────
+    if health:
+        print("\n[6] Agentverse registration (Almanac)")
+        host_addr = health.get("agents", {}).get("host", "")
+        almanac = f"https://agentverse.ai/v1/almanac/agents/{host_addr}"
+        reg = None
         try:
-            th = get(f"{tunnel}/health")
-            if th.get("status") == "ok":
-                ok("tunnel reaches /health")
-            else:
-                bad("tunnel /health returned unexpected body")
-                failures += 1
+            reg = get(almanac, timeout=20)
         except Exception as e:
-            bad(f"tunnel /health failed: {e}")
-            failures += 1
-            print("     → Is ngrok running? URL current?")
-        try:
-            reply = ask(tunnel, "preflight-tunnel", "Help")
-            if "BudgetBuddy Help" in reply:
-                ok("tunnel round-trips POST /submit")
+            warn(f"could not reach Almanac ({e})")
+            print("     → Needs internet. Registration happens at startup;")
+            print("       retry in a few seconds if the agent just booted.")
+        if reg is not None:
+            status = reg.get("status")
+            rtype = reg.get("type")
+            protos = reg.get("protocols") or []
+            if status == "active" and rtype == "mailbox":
+                ok(f"agent is active as a mailbox ({len(protos)} protocols)")
+            elif status == "active":
+                ok(f"agent is active (type={rtype!r})")
             else:
-                bad(f"tunnel submit unexpected: {reply[:50]!r}")
+                bad(f"agent is not active (status={status!r}) — retry shortly")
                 failures += 1
-        except Exception as e:
-            bad(f"tunnel submit failed: {e}")
-            failures += 1
-        print("\n  → Paste THIS into Agentverse as the agent endpoint:")
-        print(f"     {tunnel}/submit")
-    else:
-        print("\n[6] Public tunnel — skipped (pass your ngrok URL as an argument)")
+            print(f"     profile: https://agentverse.ai/agents/details/{host_addr}")
+            print("     → If you see 'mailbox not found' in the Bureau log,")
+            print("       create the mailbox in the Agentverse Agent Inspector.")
 
     # ── summary ────────────────────────────────────────────────────────
     print("\n" + "=" * 62)

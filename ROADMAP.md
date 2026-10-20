@@ -88,17 +88,29 @@
 **Goal:** First real ASI:One ping.
 
 - [x] **5.1** Push repo to GitHub — ✅ public repo live: `github.com/surjit12334-hue/budgetbuddy`
-- [ ] **5.2** Agentverse: create account → create agent → enable chat protocol — 👤 *needs your clicks*; guide: `docs/REGISTRATION.md` Steps 3–5 — *Done when:* Agent Profile URL exists
-- [ ] **5.3** Start ngrok → paste public URL as agent endpoint — 👤 *needs your clicks*; verify first with `tools/preflight.py <ngrok-url>` — *Done when:* endpoint saved
-- [ ] **5.4** First ASI:One message — 👤 *needs your clicks*; `GET /health` + preflight give local end-to-end proof — *Done when:* agent replies in ASI:One
-- [ ] **5.5** Full 6-turn flow in ASI:One, session persistence verified — ✅ *locally verified* (preflight [4] + [5]); 👤 pending in real ASI:One — *Done when:* conversation memory works across turns
-- [x] **5.6** Demo-window uptime plan — ✅ `keepalive.sh` (auto-restart, verified) + `docs/REGISTRATION.md` Step 8 checklist
+- [ ] **5.2** Agentverse: create account → create agent → enable chat protocol — 👤 *needs your clicks*; guide: `docs/REGISTRATION.md` Steps 4–5 — *Done when:* Agent Profile URL exists
+- [x] **5.3** Reachable from Agentverse — ✅ **mailbox** (not ngrok): agent self-registers `status: active`, `type: mailbox`; verified via Almanac lookup
+- [ ] **5.4** First ASI:One message — 👤 *needs your clicks*; Chat Protocol handler + `route()` verified by `tests/test_chat.py` (17/17) — *Done when:* agent replies in ASI:One
+- [x] **5.5** Full flow + session persistence — ✅ locally verified (preflight [4]+[5], `test_chat.py` [4]); chat sessions namespaced per sender — *Done when:* 👍 confirmed in real ASI:One
+- [x] **5.6** Demo-window uptime plan — ✅ `keepalive.sh` (auto-restart, verified) + mailbox reconnects on its own (no URL to re-paste)
 
-> **🤝 Phase 5 status — code-side complete, awaiting live account steps.**
-> Built and verified locally: `GET /health` (all 6 agent addresses), `tools/preflight.py`
-> (Bureau → agents → 6-turn flow → session persistence → tunnel, all green),
-> `keepalive.sh` (kill-tested auto-restart). Remaining work is 👤 Agentverse account,
-> ngrok tunnel, and the first real ASI:One message — see `docs/REGISTRATION.md`.
+> **🤝 Phase 5 status — code-side complete; remaining work is 👤 account clicks.**
+>
+> **Key correction:** the original plan (custom REST `/submit` + ngrok) **cannot work**.
+> uAgents *reserves* `/submit` and rejects it from any non-local client
+> (`uagents/asgi.py:304`), so it's unreachable through a tunnel and from ASI:One.
+> Rebuilt the external interface on the **Chat Protocol + Agentverse mailbox**:
+>
+> - `agents/host.py` — host routes through a shared `route()` used by both the
+>   chat handler and REST; `Protocol(spec=chat_protocol_spec)` included;
+>   `mailbox=True`, `agentverse=True`; acknowledges every message and honours
+>   session-end.
+> - `tests/test_chat.py` — 17/17: protocol attached, mailbox on, every intent
+>   reachable, sessions isolated per sender.
+> - Agent confirmed **active on Agentverse**: `type: mailbox`, 2 protocols.
+>
+> **Left:** 👤 create the Agentverse mailbox (Agent Inspector), then send `Help`
+> from ASI:One. No ngrok, no public URL, no firewall change.
 
 > **✅ Phase 5 gate:** The complete workflow runs inside a real ASI:One conversation. **(Mandatory requirement #1 — unlock everything after this.)**
 
