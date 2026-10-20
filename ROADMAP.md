@@ -72,10 +72,12 @@
 
 **Goal:** Submission-ready materials.
 
-- [ ] **4.1** `README.md` — problem/users/outcome, ASCII architecture, quickstart, $0 stack table, copy-paste demo script, FAQ with judge-proof answers, roadmap — *Done when:* a stranger could reproduce from README alone
-- [ ] **4.2** `docs/REGISTRATION.md` — Agentverse click-by-click, ngrok, ASI:One, Shared Chat URL, testnet faucet — *Done when:* zero ambiguity for you
-- [ ] **4.3** Devpost draft: problem, target users, outcome, architecture blurb — *Done when:* ready to paste
-- [ ] **4.4** MIT LICENSE — *Done when:* repo complete
+- [x] **4.1** `README.md` — problem/users/outcome, ASCII architecture, quickstart, $0 stack table, copy-paste demo script, FAQ with judge-proof answers, roadmap — ✅ verified from a **fresh clone**: docs present, demo runs, tests green
+- [x] **4.2** `docs/REGISTRATION.md` — Agentverse click-by-click, ngrok, ASI:One, Shared Chat URL, testnet faucet — ✅ step-by-step with troubleshooting table + uptime plan
+- [x] **4.3** Devpost draft: problem, target users, outcome, architecture blurb — ✅ `docs/DEVPOST.md` ready to paste
+- [x] **4.4** MIT LICENSE — ✅ `LICENSE` added
+
+> **✅ Phase 4 gate PASSED:** a stranger can clone the repo and reproduce the full demo in under 5 minutes, with or without an API key. All docs committed (`f1c3d93`).
 
 ---
 
