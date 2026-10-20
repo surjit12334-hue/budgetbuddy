@@ -208,14 +208,28 @@ def _positional_map(rows: List[List[str]]) -> Dict[str, int]:
 # ──────────────────────────── CSV parser ───────────────────────────────
 
 
+def _safe_rows(text: str, delim: str) -> List[List[str]]:
+    """Parse rows with csv.reader, falling back to a naive split when the
+    input is malformed (unquoted newlines, stray quotes, etc.)."""
+    try:
+        reader = csv.reader(io.StringIO(text), delimiter=delim)
+        return [row for row in reader if any(cell.strip() for cell in row)]
+    except Exception:
+        # Malformed CSV — treat every line as a plain delimited row.
+        rows: List[List[str]] = []
+        for line in text.splitlines():
+            if line.strip():
+                rows.append(line.split(delim))
+        return rows
+
+
 def parse_csv(text: str) -> List[Transaction]:
     text = text.strip()
     if not text:
         return []
 
     delim = detect_delimiter(text)
-    reader = csv.reader(io.StringIO(text), delimiter=delim)
-    rows = [row for row in reader if any(cell.strip() for cell in row)]
+    rows = _safe_rows(text, delim)
     if not rows:
         return []
 

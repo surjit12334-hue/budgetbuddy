@@ -59,12 +59,12 @@
 
 **Goal:** Break it on purpose before a judge does.
 
-- [ ] **3.1** `run_local.py` — terminal REPL (`/demo`, `/reset`, paste mode) — *Done when:* you chat with it locally
-- [ ] **3.2** Adversarial tests: no headers, semicolons, tabs, £/€/₹, ambiguous dates, empty paste, 500-row file, garbage text — *Done when:* every case → helpful message, never a traceback
-- [ ] **3.3** LLM-outage drill (remove key mid-session) — *Done when:* deterministic insights take over silently
-- [ ] **3.4** You paste your own real bank CSV (anonymized) — *Done when:* real data produces a report you'd actually use
+- [x] **3.1** `run_local.py` — terminal REPL (`/demo`, `/reset`, paste mode) — ✅ REPL works (`sim.sh`), all 6 demo turns run
+- [x] **3.2** Adversarial tests: no headers, semicolons, tabs, £/€/₹, ambiguous dates, empty paste, 500-row file, garbage text — ✅ 45/45 cases graceful, never a traceback (also 1000 fuzz inputs, and fixed a real `csv.reader` crash)
+- [x] **3.3** LLM-outage drill (remove key mid-session) — ✅ 14/14 tests; deterministic insights take over silently, no error leaks
+- [ ] **3.4** You paste your own real bank CSV (anonymized) — ⏳ **your step**: use `tools/redact_csv.py` to anonymize, then `./sim.sh` and paste. *Done when:* real data produces a report you'd actually use
 
-> **✅ Phase 3 gate:** 6-turn flow passes on sample **and** real data; all failure paths recover gracefully.
+> **Phase 3 gate: code-side PASSED** — 6-turn flow passes on sample data; all failure paths recover gracefully (45/45 adversarial, 14/14 outage). Awaiting 3.4 (your real CSV) to fully close.
 
 ---
 

@@ -139,13 +139,15 @@ def normalize_merchant(desc: str) -> str:
 
 
 class Categorizer:
-    def __init__(self, llm: Optional[LLMClient] = None):
+    def __init__(self, llm: Optional[LLMClient] = None, max_llm_calls: int = 10):
         self.llm = llm
+        # Cap on per-paste LLM fallback calls (see categorize_all).
+        self.max_llm_calls = max_llm_calls
 
     # ── public ──
 
-    def categorize(self, txn: Transaction) -> str:
-        """Set txn.category and return the category string."""
+    def _keyword_categorize(self, txn: Transaction) -> Optional[str]:
+        """Return a category from the keyword map, or None if unknown."""
         desc_lower = txn.description.lower()
         merchant_lower = (txn.merchant or "").lower()
 
@@ -153,8 +155,7 @@ class Categorizer:
         if txn.amount > 0:
             for kw in CATEGORY_MAP["income"]:
                 if kw in desc_lower or kw in merchant_lower:
-                    txn.category = "income"
-                    return txn.category
+                    return "income"
 
         # Keyword scan (skip income bucket — handled above)
         for cat, keywords in CATEGORY_MAP.items():
@@ -162,8 +163,15 @@ class Categorizer:
                 continue
             for kw in keywords:
                 if kw in desc_lower or kw in merchant_lower:
-                    txn.category = cat
-                    return txn.category
+                    return cat
+        return None
+
+    def categorize(self, txn: Transaction) -> str:
+        """Set txn.category and return the category string."""
+        cat = self._keyword_categorize(txn)
+        if cat is not None:
+            txn.category = cat
+            return txn.category
 
         # LLM fallback for unknown merchants
         if self.llm and self.llm.available:
@@ -176,10 +184,22 @@ class Categorizer:
         return txn.category
 
     def categorize_all(self, transactions: List[Transaction]) -> List[Transaction]:
+        # LLM fallback is expensive (one call per unknown merchant) and can
+        # stall on a slow provider.  Cap it so a large paste can't trigger
+        # hundreds of sequential network calls.
+        llm_budget = self.max_llm_calls
         for txn in transactions:
             if not txn.merchant:
                 txn.merchant = normalize_merchant(txn.description)
-            self.categorize(txn)
+            cat = self._keyword_categorize(txn)
+            if cat is not None:
+                txn.category = cat
+            elif llm_budget > 0 and self.llm and self.llm.available:
+                llm_budget -= 1
+                cat = self._llm_categorize(txn)
+                txn.category = cat if cat else "other"
+            else:
+                txn.category = "other"
         return transactions
 
     # ── LLM fallback ──
