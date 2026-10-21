@@ -74,6 +74,16 @@ def build_bureau() -> Bureau:
 def main() -> None:
     bureau = build_bureau()
 
+    # The Agentverse Inspector URL is how you create the MAILBOX for a
+    # local agent: Agentverse opens against 127.0.0.1 (your machine), so
+    # it can talk to the running Bureau — no public endpoint needed.
+    # https://uagents.fetch.ai/docs/agentverse/mailbox
+    inspector_url = (
+        f"https://agentverse.ai/inspect/"
+        f"?uri=http%3A%2F%2F127.0.0.1%3A{BUREAU_PORT}"
+        f"&address={host_agent.address}"
+    )
+
     print("=" * 60)
     print("  BudgetBuddy — multi-agent ACP system")
     print("=" * 60)
@@ -86,6 +96,12 @@ def main() -> None:
     print()
     print(f"  REST endpoint:  POST http://localhost:{BUREAU_PORT}/submit")
     print(f"  Agent timeout:  {AGENT_TIMEOUT}s")
+    print("=" * 60)
+    print()
+    print("  → Create the Agentverse MAILBOX (one time, required for ASI:One):")
+    print(f"    {inspector_url}")
+    print()
+    print("    In that page click Connect → Mailbox.")
     print("=" * 60)
     sys.stdout.flush()
 
