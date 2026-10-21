@@ -159,6 +159,9 @@ check("mark_paid works", pm.mark_paid(req.id))
 check("is_pro True after payment", pm.is_pro(req.id))
 
 # ── 1.10 Cards ─────────────────────────────────────────────────────────
+# Builders emit plain payload dicts; as_metadata() wraps them in the
+# ASI:One wire envelope.  Schema conformance is covered in depth by
+# tests/test_cards.py — here we only check the builders are wired up.
 print("\n[1.10] Cards")
 cb = CardBuilder()
 import json
@@ -169,11 +172,15 @@ cards = [
     cb.build_goal_card({"target_amount": 3000, "deadline": "Aug 2027", "monthly_target": 500}),
     cb.build_split_card("Dinner", 90, shares),
     cb.build_checkout_card(req.id, 4.99, "Pro"),
-    cb.build_report_card(analysis),
+    cb.build_subscriptions_card(analysis),
 ]
 all_valid = all(isinstance(json.dumps(c), str) for c in cards)
 check("all 7 cards emit valid JSON", all_valid)
 check("cards disabled by default", cb.enabled is False)
+
+# Disabled → no metadata block, so the markdown reply is the whole answer.
+check("disabled cards yield no metadata",
+      cb.as_metadata("form", cards[0]) == {})
 
 # ── 1.11 Orchestrator ──────────────────────────────────────────────────
 print("\n[1.11] Orchestrator — full 6-turn flow")

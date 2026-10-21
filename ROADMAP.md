@@ -125,9 +125,29 @@
 
 **Goal:** The bonus points.
 
-- [ ] **6.1** Check official ASI:One Interactive Cards docs → adapt `cards.py` to the real schema — *Done when:* builders match official schema
-- [ ] **6.2** `ENABLE_CARDS=true` → test each card live: onboarding form, dashboard, insights carousel, goal, split, checkout — *Done when:* cards render in chat
-- [ ] **6.3** Fallback check: cards off → markdown version still tells the whole story — *Done when:* zero single point of failure
+- [x] **6.1** Check official ASI:One Interactive Cards docs → adapt `cards.py` to the real schema — *Done when:* builders match official schema
+      Rewritten against <https://innovationlab.fetch.ai/resources/docs/interactive-cards/asi-interactive-cards>.
+      The old builders used an invented envelope (`{"type","version","data"}`) that ASI:One
+      would have silently dropped. Now: real wire keys (`card_protocol_version: "1"`,
+      `requires_card_interaction`, `card_kind`, `card_payload`), payload at the **top
+      level** (not wrapped in `data`), real kinds (`carousel`/`detail`/`form`/`review`/`custom`),
+      real `form` fields (`kind`, not `type`), real element-tree primitives, CTA `selection`
+      blocks, 64 KB + 8-level-depth limits enforced locally.
+      Guarded by `tests/test_cards.py` — **198/198**.
+- [x] **6.2** `ENABLE_CARDS=true` → test each card live: onboarding form, dashboard, insights carousel, goal, split, checkout — *Done when:* cards render in chat
+      Cards were previously built but **never called** — dead code. Now wired into the chat
+      handler: dashboard (custom), insights carousel, subscriptions carousel, goal (custom),
+      split (custom), checkout (review). Added an `INSIGHTS` intent so advice-seeking language
+      reaches the carousel while status questions still get the dashboard. Card clicks
+      round-trip as selections (`_parse_card_selection` → `_selection_to_instruction`).
+      Guarded by `tests/test_cards_live.py` — **51/51**, driving the real `_handle_chat`.
+      *(Final on-screen confirmation still needs one live ASI:One pass.)*
+- [x] **6.3** Fallback check: cards off → markdown version still tells the whole story — *Done when:* zero single point of failure
+      Cards are **additive**: the markdown reply is always sent and a card is an extra
+      `MetadataContent` block. Off → `as_metadata()` returns `{}` and zero cards are emitted,
+      with identical text. A rejected payload also degrades to text, and building a card is
+      wrapped so a card bug can never cost the user their answer.
+      Guarded by `tests/test_cards_live.py` section [8].
 - [ ] **6.4** Testnet faucet → real Payment Protocol request → Pro unlock — *Done when:* payment completes in-chat
 
 > **✅ Phase 6 gate:** Judge sees a card-driven flow and one credible payment.

@@ -5,6 +5,7 @@ correct sub-agent through the AgentBus (15 s timeout), and falls back
 to in-process core modules when a sub-agent is unreachable.
 """
 
+import json
 import os
 import re
 import uuid
@@ -15,12 +16,13 @@ from uagents import Agent, Context, Model
 from uagents.protocol import Protocol
 from uagents_core.contrib.protocols.chat import (
     ChatMessage, ChatAcknowledgement, TextContent, StartSessionContent,
-    EndSessionContent, chat_protocol_spec,
+    EndSessionContent, MetadataContent, chat_protocol_spec,
 )
 
 from core.parser import parse_any
 from core.models import Goal
 from core.analyzer import is_subscription, is_bill
+from typing import Dict
 
 from .messages import (
     Query, Response, HealthResponse,
@@ -32,13 +34,14 @@ from .messages import (
 )
 from .bus import get_bus, new_request_id
 from .services import (
-    store, categorizer, analyzer, coach, goal_calc, splitter,
+    store, categorizer, analyzer, coach, goal_calc, splitter, cards, payments,
 )
 
 # ── intent constants (kept in sync with core.orchestrator) ────────────
 
 INGEST = "ingest"
 ANALYSIS = "analysis"
+INSIGHTS = "insights"
 SUBSCRIPTIONS = "subscriptions"
 GOAL = "goal"
 SPLIT = "split"
@@ -64,6 +67,11 @@ def detect_intent(text: str) -> str:
         return GOAL
     if re.search(r"\b(subscriptions?|recurring|monthly charge|renewals?)\b", low):
         return SUBSCRIPTIONS
+    # Advice-seeking language gets the insights carousel; a plain status
+    # question gets the dashboard. Both run the same analysis — only the
+    # card differs.
+    if re.search(r"\b(tips?|advice|advise|insights?|suggestions?|recommend\w*|improve|where can i)\b", low):
+        return INSIGHTS
     if re.search(r"\b(how am i doing|analysis|report|breakdown|spending|summary|health|overview)\b", low):
         return ANALYSIS
     if re.search(r"\b(pro|upgrade|premium|unlock|payment|lifetime)\b", low):
@@ -104,6 +112,41 @@ _chat_proto = Protocol(spec=chat_protocol_spec)
 
 # ── chat protocol handler (ASI:One) ───────────────────────────────────
 
+def _parse_card_selection(text: str) -> Optional[Dict]:
+    """Return a card selection dict, or None if this isn't one.
+
+    Per the ASI:One docs the shape depends on how the user reached the
+    agent: direct @mention sends the selection as JSON verbatim, while
+    the planner narrates it in prose. We try JSON first and let anything
+    that isn't a recognisable selection fall through to normal routing.
+    """
+    stripped = text.strip()
+    if not stripped.startswith("{"):
+        return None
+    try:
+        data = json.loads(stripped)
+    except (ValueError, TypeError):
+        return None
+    if isinstance(data, dict) and "action" in data:
+        return data
+    return None
+
+
+def _selection_to_instruction(sel: Dict) -> str:
+    """Map a card selection to text the normal intent router understands."""
+    action = str(sel.get("action", ""))
+    mapping = {
+        "confirm_payment": "How do I unlock Pro?",
+        "cancel_payment": "What subscriptions do I have?",
+        "onboarding_submit": "How am I doing?",
+        "review_subscription": "What subscriptions do I have?",
+        "remind_all": "How am I doing?",
+        "dismiss_insight": "How am I doing?",
+        "settle_share": "How am I doing?",
+    }
+    return mapping.get(action, "Help")
+
+
 @_chat_proto.on_message(ChatAcknowledgement)
 async def _on_chat_ack(ctx: Context, sender: str, msg: ChatAcknowledgement) -> None:
     ctx.logger.debug(f"[chat] ack from {sender} for {msg.acknowledged_msg_id}")
@@ -138,6 +181,15 @@ async def _handle_chat(ctx: Context, sender: str, msg: ChatMessage) -> None:
 
     text = "\n".join(text_parts).strip()
     sid = f"asi1-{sender}"
+
+    # A card button click arrives as a selection, either verbatim JSON
+    # (direct @mention) or narrated prose (planner-mediated). Turn the
+    # JSON case into a readable instruction so it routes normally.
+    card_action = _parse_card_selection(text)
+    if card_action:
+        ctx.logger.info(f"[cards] ← selection {card_action}")
+        text = _selection_to_instruction(card_action)
+
     ctx.logger.info(f"[chat] ← asi1  session={sid}  text={text[:60]!r}")
 
     if not text:
@@ -149,6 +201,16 @@ async def _handle_chat(ctx: Context, sender: str, msg: ChatMessage) -> None:
     # 3. Send the reply.  If the user ended the session, attach the
     #    EndSessionContent marker so ASI:One closes cleanly.
     content = [TextContent(type="text", text=reply)]
+
+    # 3b. Attach an interactive card when the intent has one. Cards are
+    #     additive: the text above is always sent, so a rejected card
+    #     degrades to plain text rather than losing the answer.
+    if text and not end_session:
+        meta = _card_for_intent(detect_intent(text), sid, logger=ctx.logger)
+        if meta:
+            content.append(MetadataContent(type="metadata", metadata=meta))
+            ctx.logger.info(f"[cards] attached  kind={meta['card_kind']}")
+
     if end_session:
         content.append(EndSessionContent(type="end-session"))
     await ctx.send(
@@ -165,6 +227,112 @@ async def _handle_chat(ctx: Context, sender: str, msg: ChatMessage) -> None:
 # what ASI:One uses to decide whether the agent can be chatted with.
 # https://uagents.fetch.ai/docs/guides/public_private_agents
 host_agent.include(_chat_proto, publish_manifest=True)
+
+
+# ── interactive cards (Phase 6) ───────────────────────────────────────
+#
+# route() returns plain markdown and is shared by REST and chat, so cards
+# are attached HERE, in the chat layer only — REST/testing is unaffected.
+# Cards are additive: the markdown reply is always sent; a card is an
+# extra MetadataContent block. If the payload is rejected (or cards are
+# off) ASI:One silently falls back to the text, so there is no failure
+# mode where the user sees nothing.
+
+
+def _card_for_intent(intent: str, session_id: str, analysis=None, logger=None) -> Dict[str, str]:
+    """Return ASI:One card metadata for an intent, or {} for none.
+
+    Never raises: a card is a bonus, and a bug here must not cost the
+    user their answer.
+    """
+    if not cards.enabled:
+        return {}
+    try:
+        if intent == ANALYSIS:
+            txns = store.load_transactions(session_id)
+            if not txns:
+                return {}
+            result = analysis or analyzer.analyze(txns)
+            return cards.as_metadata(
+                "custom", cards.build_dashboard(result),
+                is_terminal=True, drawer_width_px=560,
+            )
+
+        if intent == INSIGHTS:
+            txns = store.load_transactions(session_id)
+            if not txns:
+                return {}
+            result = analysis or analyzer.analyze(txns)
+            if not result.insights:
+                return {}
+            return cards.as_metadata(
+                "carousel", cards.build_insights_carousel(result.insights),
+                is_terminal=True, drawer_width_px=640,
+            )
+
+        if intent == SUBSCRIPTIONS:
+            txns = store.load_transactions(session_id)
+            if not txns:
+                return {}
+            result = analysis or analyzer.analyze(txns)
+            meta = cards.as_metadata(
+                "carousel", cards.build_subscriptions_card(result),
+                drawer_width_px=640,
+            )
+            # An empty carousel is a broken card — send text only.
+            return meta if result.recurring_items else {}
+
+        if intent == GOAL:
+            txns = store.load_transactions(session_id)
+            if not txns:
+                return {}
+            plan = _last_goal_plan.get(session_id)
+            if not plan:
+                return {}
+            return cards.as_metadata(
+                "custom", cards.build_goal_card(plan),
+                is_terminal=True, drawer_width_px=560,
+            )
+
+        if intent == PAYMENT:
+            req = payments.create_pro_request()
+            from core.payments import PRO_PRICE, PRO_DESCRIPTION
+            return cards.as_metadata(
+                "review",
+                cards.build_checkout_card(req.id, PRO_PRICE, PRO_DESCRIPTION),
+                drawer_width_px=600,
+            )
+
+    except Exception as exc:  # pragma: no cover - defensive by design
+        # A broken card must never cost the user their answer: log, then
+        # fall through to the markdown reply that was already computed.
+        if logger is not None:
+            logger.warning(f"[cards] build failed for {intent}: {exc}")
+        return {}
+    return {}
+
+
+# The goal plan is computed inside route(); stash it so the card layer can
+# render it without recomputing (and without parsing the markdown back).
+_last_goal_plan: Dict[str, Dict] = {}
+
+
+def _remember_goal_plan(session_id: str, plan_text: str, text: str) -> None:
+    """Record minimal goal facts for the card. Best-effort, never fatal."""
+    try:
+        m = re.search(r"\$?\s*([\d,]+(?:\.\d{2})?)", text)
+        target = float(m.group(1).replace(",", "")) if m else 0.0
+        mm = re.search(r"Monthly savings needed:\s*\$([\d,]+\.\d{2})", plan_text)
+        monthly = float(mm.group(1).replace(",", "")) if mm else 0.0
+        dm = re.search(r"by\s+([A-Za-z]+\s+\d{4})", plan_text)
+        _last_goal_plan[session_id] = {
+            "target_amount": target,
+            "monthly_target": monthly,
+            "deadline": dm.group(1) if dm else "—",
+            "on_track": "on track" in plan_text.lower(),
+        }
+    except Exception:
+        pass
 
 
 # ── fallbacks (in-process, no agent involved) ──────────────────────────
@@ -364,8 +532,10 @@ async def route(ctx: Context, session_id: str, text: str) -> str:
         )
         return resp.reply if resp else "Sorry, I couldn't parse that."
 
-    # ── ANALYSIS ──
-    if intent == ANALYSIS:
+    # ── ANALYSIS / INSIGHTS ──
+    # Same analysis run; the two intents differ only in which card the
+    # chat layer attaches (dashboard vs. insights carousel).
+    if intent in (ANALYSIS, INSIGHTS):
         resp = await bus.call(
             ctx, "analyst",
             AnalysisRequest(request_id=new_request_id(), session_id=sid),
@@ -389,7 +559,9 @@ async def route(ctx: Context, session_id: str, text: str) -> str:
             GoalResponse,
             fallback=lambda: _fallback_goal(sid, text),
         )
-        return resp.plan if resp else "Sorry, I couldn't compute that goal."
+        plan = resp.plan if resp else "Sorry, I couldn't compute that goal."
+        _remember_goal_plan(sid, plan, text)
+        return plan
 
     # ── SPLIT ──
     if intent == SPLIT:

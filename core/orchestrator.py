@@ -25,6 +25,7 @@ from .cards import CardBuilder
 
 INGEST = "ingest"
 ANALYSIS = "analysis"
+INSIGHTS = "insights"
 SUBSCRIPTIONS = "subscriptions"
 GOAL = "goal"
 SPLIT = "split"
@@ -73,6 +74,10 @@ class Orchestrator:
         if re.search(r"\b(subscriptions?|recurring|monthly charge|renewals?)\b", low):
             return SUBSCRIPTIONS
 
+        # Advice-seeking → insights carousel; status → dashboard.
+        if re.search(r"\b(tips?|advice|advise|insights?|suggestions?|recommend\w*|improve|where can i)\b", low):
+            return INSIGHTS
+
         if re.search(r"\b(how am i doing|analysis|report|breakdown|spending|summary|health|overview)\b", low):
             return ANALYSIS
 
@@ -93,6 +98,7 @@ class Orchestrator:
         handlers = {
             INGEST: self._handle_ingest,
             ANALYSIS: self._handle_analysis,
+            INSIGHTS: self._handle_analysis,
             SUBSCRIPTIONS: self._handle_subscriptions,
             GOAL: self._handle_goal,
             SPLIT: self._handle_split,
