@@ -238,4 +238,5 @@ async def _handle_split(ctx: Context, sender: str, msg: SplitRequest):
     ctx.logger.info(f"[splitter] → host  {len(shares)} ways")
     await ctx.send(sender, SplitResponse(
         request_id=msg.request_id, result=result,
+        description=label, total=amount, shares=shares,
     ))

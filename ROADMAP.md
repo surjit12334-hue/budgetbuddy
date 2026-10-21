@@ -141,13 +141,26 @@
       reaches the carousel while status questions still get the dashboard. Card clicks
       round-trip as selections (`_parse_card_selection` → `_selection_to_instruction`).
       Guarded by `tests/test_cards_live.py` — **51/51**, driving the real `_handle_chat`.
-      *(Final on-screen confirmation still needs one live ASI:One pass.)*
+      *Live-confirmed over the real transport* with `tools/card_demo.py` (a real buyer agent
+      talking to the running Bureau): **6/6** card-bearing turns delivered a card —
+      dashboard `custom`, insights `carousel`, subscriptions `carousel`, goal `custom`,
+      split `custom`, checkout `review` — each carrying the real wire keys
+      (`card_protocol_version: "1"`, `card_kind`, `card_payload`). The split card was found
+      to be **wired to a builder but never reachable**; `SplitResponse` now carries the
+      structured shares and the host renders them.
+      *(Only the final on-screen confirmation in the ASI:One UI is left, and that is a
+      human pass.)*
 - [x] **6.3** Fallback check: cards off → markdown version still tells the whole story — *Done when:* zero single point of failure
       Cards are **additive**: the markdown reply is always sent and a card is an extra
       `MetadataContent` block. Off → `as_metadata()` returns `{}` and zero cards are emitted,
       with identical text. A rejected payload also degrades to text, and building a card is
       wrapped so a card bug can never cost the user their answer.
       Guarded by `tests/test_cards_live.py` section [8].
+      *Live-confirmed over the real transport*: the same six turns were replayed with
+      `ENABLE_CARDS=false` (`tools/card_demo.py`, `CARD_DEMO_EXPECT_CARDS=0`) —
+      **zero** cards came back and the markdown was **byte-identical** on 6 of 7 turns
+      (the 7th differs only in the randomly generated payment request id / reference).
+      No single point of failure.
 - [x] **6.4** Testnet faucet → real Payment Protocol request → Pro unlock — *Done when:* payment completes in-chat
       BudgetBuddy is the **seller** in the official Agent Payment Protocol
       (`Protocol(spec=payment_protocol_spec, role="seller")`): it sends `RequestPayment`,

@@ -4,6 +4,12 @@ Every request carries a unique request_id so the host can
 correlate async responses (pending-future pattern).
 """
 
+from typing import Any, Dict, List
+
+# uagents' Model is a pydantic **v1** BaseModel, so the Field helper has
+# to come from pydantic.v1 — pydantic v2's FieldInfo cannot be
+# serialised by it.
+from pydantic.v1 import Field
 from uagents import Model
 
 
@@ -69,6 +75,12 @@ class SplitRequest(Model):
 class SplitResponse(Model):
     request_id: str
     result: str
+    # Structured data as well as the human-readable text: the card
+    # layer needs the individual shares, and re-parsing the rendered
+    # markdown to get them back would be guesswork.
+    description: str = ""
+    total: float = 0.0
+    shares: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 # ── External Query / Response (host ↔ world) ──────────────────────────

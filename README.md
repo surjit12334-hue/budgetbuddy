@@ -283,8 +283,15 @@ Cards and payments:
 
 ```bash
 .venv/bin/python tests/test_cards.py       # 198 checks — ASI:One card schema conformance
-.venv/bin/python tests/test_cards_live.py  #  51 checks — cards attached + round-trip in chat
+.venv/bin/python tests/test_cards_live.py  #  58 checks — cards attached + round-trip in chat
 .venv/bin/python tests/test_payments.py    #  69 checks — payment conformance + forgery/replay
+```
+
+Live, over the real network (the Bureau must be running):
+
+```bash
+.venv/bin/python tools/card_demo.py       # every card type, real transport
+.venv/bin/python tools/payment_demo.py    # the whole payment round-trip
 ```
 
 For the multi-agent layer (Bureau must be running):
@@ -295,7 +302,7 @@ For the multi-agent layer (Bureau must be running):
 .venv/bin/python tests/test_fallback.py   # sub-agent-death recovery
 ```
 
-**Current status: 511/511 assertions green** across 11 test files.
+**Current status: 518/518 assertions green** across 11 test files.
 
 ---
 
@@ -354,10 +361,13 @@ budgetbuddy/
 ├── tools/
 │   ├── redact_csv.py      # anonymise a real export
 │   ├── preflight.py       # Phase 5 readiness check
+│   ├── card_demo.py       # live interactive-card round-trip
 │   ├── payment_demo.py    # live Agent Payment Protocol round-trip
+│   ├── stop_bureau.sh     # stop the keepalive + the Bureau it supervises
 │   └── send_chat.py       # send a Chat Protocol message via Agentverse
 ├── run_local.py           # the terminal simulator
 ├── run.sh / sim.sh        # launchers
+├── env.sh                 # shared .env loader (an exported var wins)
 ├── keepalive.sh           # auto-restart wrapper for the demo window
 └── ROADMAP.md             # the build plan + progress
 ```

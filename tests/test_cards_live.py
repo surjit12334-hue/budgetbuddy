@@ -214,6 +214,24 @@ async def main() -> int:
         check("card carries the target amount", "3,000" in flat or "3000" in flat, flat[:200])
         check("card shows a deadline", "2027" in flat, flat[:200])
 
+    # ── 4b. split → custom card carrying the shares ───────────────────
+    print("\n[4b] Split → split card")
+    msg = await drive(ctx, user, "Split this $90 dinner with Alice and Bob")
+    blk = card_block(msg)
+    check("split card attached", blk is not None)
+    if blk:
+        m = blk.metadata
+        check("kind is custom", m.get("card_kind") == "custom")
+        payload = json.loads(m["card_payload"])
+        flat = json.dumps(payload)
+        check("card carries the total", "90" in flat, flat[:200])
+        check("card lists every share",
+              all(n in flat for n in ("You", "Alice", "Bob")), flat[:300])
+        check("card offers a settle action",
+              "settle_share" in flat, flat[:300])
+    check("markdown still shows the split",
+          "90" in text_of(msg), text_of(msg)[:120])
+
     # ── 5. payment → review card with both CTAs ───────────────────────
     print("\n[5] Payment → review (checkout) card")
     msg = await drive(ctx, user, "How do I unlock Pro?")

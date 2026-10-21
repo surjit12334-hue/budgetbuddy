@@ -410,6 +410,18 @@ def _card_for_intent(intent: str, session_id: str, analysis=None, logger=None) -
                 is_terminal=True, drawer_width_px=560,
             )
 
+        if intent == SPLIT:
+            split = _last_split.get(session_id)
+            if not split:
+                return {}
+            return cards.as_metadata(
+                "custom",
+                cards.build_split_card(
+                    split["description"], split["total"], split["shares"]
+                ),
+                is_terminal=True, drawer_width_px=560,
+            )
+
         if intent == PAYMENT:
             # Reference the request that was actually sent, not a new one.
             request_id = _active_payment.get(session_id)
@@ -452,6 +464,29 @@ def _remember_goal_plan(session_id: str, plan_text: str, text: str) -> None:
             "monthly_target": monthly,
             "deadline": dm.group(1) if dm else "—",
             "on_track": "on track" in plan_text.lower(),
+        }
+    except Exception:
+        pass
+
+
+# The last split computed for a session, kept so the card layer can
+# render it without re-parsing the markdown back.
+_last_split: Dict[str, Dict] = {}
+
+
+def _remember_split_plan(session_id: str, resp) -> None:
+    """Record the split's shares for the card. Best-effort, never fatal."""
+    try:
+        shares = [
+            {"name": s.get("name", "?"), "amount": s.get("amount", 0)}
+            for s in (getattr(resp, "shares", None) or [])
+        ]
+        if not shares:
+            return
+        _last_split[session_id] = {
+            "description": getattr(resp, "description", "") or "Bill",
+            "total": float(getattr(resp, "total", 0) or 0),
+            "shares": shares,
         }
     except Exception:
         pass
@@ -555,7 +590,10 @@ async def _fallback_split(text: str) -> SplitResponse:
     shares = splitter.even_split(amount, names)
     label = text.split("split", 1)[-1].strip(" ?!.") or "Bill"
     result = splitter.format_split(label, amount, shares)
-    return SplitResponse(request_id="fallback", result=result)
+    return SplitResponse(
+        request_id="fallback", result=result,
+        description=label, total=amount, shares=shares,
+    )
 
 
 # ── static replies (no sub-agent needed) ──────────────────────────────
@@ -737,7 +775,10 @@ async def route(ctx: Context, session_id: str, text: str, buyer: str = "") -> st
             SplitResponse,
             fallback=lambda: _fallback_split(text),
         )
-        return resp.result if resp else "Sorry, I couldn't split that."
+        if resp is None:
+            return "Sorry, I couldn't split that."
+        _remember_split_plan(sid, resp)
+        return resp.result
 
     # ── PAYMENT (in-process) ──
     if intent == PAYMENT:

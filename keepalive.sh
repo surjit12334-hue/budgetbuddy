@@ -10,12 +10,10 @@ set -uo pipefail
 
 cd "$(dirname "$0")"
 
-if [ -f .env ]; then
-  set -a
-  # shellcheck disable=SC1091
-  source .env
-  set +a
-fi
+# Load .env if present (an already-exported variable wins over the file)
+# shellcheck disable=SC1091
+source ./env.sh
+load_env .env
 
 PYTHON=".venv/bin/python"
 if [ ! -x "$PYTHON" ]; then
