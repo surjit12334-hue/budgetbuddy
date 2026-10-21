@@ -18,6 +18,10 @@ from uagents_core.contrib.protocols.chat import (
     ChatMessage, ChatAcknowledgement, TextContent, StartSessionContent,
     EndSessionContent, MetadataContent, chat_protocol_spec,
 )
+from uagents_core.contrib.protocols.payment import (
+    CommitPayment, RejectPayment, CancelPayment, CompletePayment,
+    payment_protocol_spec,
+)
 
 from core.parser import parse_any
 from core.models import Goal
@@ -195,7 +199,8 @@ async def _handle_chat(ctx: Context, sender: str, msg: ChatMessage) -> None:
     if not text:
         reply = "Send me your transactions, or ask 'How am I doing?' for a summary."
     else:
-        reply = await route(ctx, sid, text)
+        # The sender is the buyer: it receives the payment request.
+        reply = await route(ctx, sid, text, buyer=sender)
     ctx.logger.info(f"[chat] → asi1  {len(reply)} chars")
 
     # 3. Send the reply.  If the user ended the session, attach the
@@ -227,6 +232,117 @@ async def _handle_chat(ctx: Context, sender: str, msg: ChatMessage) -> None:
 # what ASI:One uses to decide whether the agent can be chatted with.
 # https://uagents.fetch.ai/docs/guides/public_private_agents
 host_agent.include(_chat_proto, publish_manifest=True)
+
+
+# ── Agent Payment Protocol (seller role) ──────────────────────────────
+#
+# BudgetBuddy sells one thing: Pro access.  We are the SELLER, so the
+# protocol spec requires us to handle CommitPayment and RejectPayment
+# (and to send RequestPayment / CompletePayment / CancelPayment).
+#
+#   RequestPayment  →  CommitPayment | RejectPayment
+#   CommitPayment   →  CompletePayment | CancelPayment
+#
+# The verification step is real and can fail: a failed verification is
+# answered with CancelPayment, never with a silent unlock.
+# https://innovationlab.fetch.ai/resources/docs/agent-transaction/agent-payment-protocol
+
+_payment_proto = Protocol(spec=payment_protocol_spec, role="seller")
+
+# session_id → request id, so the chat card can reference the exact
+# request that was sent (rather than creating a second one).
+_active_payment: Dict[str, str] = {}
+
+
+@_payment_proto.on_message(CommitPayment)
+async def _on_commit(ctx: Context, sender: str, msg: CommitPayment) -> None:
+    """Verify a buyer's commit and unlock Pro if it checks out."""
+    ctx.logger.info(f"[payment] ← CommitPayment from {sender}")
+
+    request_id = msg.reference or _find_request_by_reference(msg.reference)
+    req = payments.get_request(request_id) if request_id else None
+
+    if req is None:
+        # Fall back to the most recent pending request for this buyer.
+        req = payments.request_for_buyer(sender)
+    if req is None:
+        ctx.logger.warning("[payment] commit for an unknown request — ignoring")
+        return
+
+    result = payments.verify_commit(
+        request=req,
+        sender=sender,
+        funds=msg.funds,
+        transaction_id=msg.transaction_id,
+        metadata=msg.metadata,
+    )
+
+    if not result.ok:
+        ctx.logger.warning(f"[payment] verification FAILED: {result.reason}")
+        await ctx.send(
+            sender,
+            CancelPayment(transaction_id=msg.transaction_id, reason=result.reason),
+        )
+        await _chat_to(ctx, sender, req.session_id, (
+            f"⚠️ Payment not confirmed: {result.reason}\n\n"
+            "Your Pro unlock was **not** granted. Fix the issue and try again."
+        ))
+        return
+
+    payments.mark_paid(req.id, msg.transaction_id or "")
+    if req.session_id:
+        store.set_pro(req.session_id, True)
+    _active_payment.pop(req.session_id, None)
+
+    ctx.logger.info(f"[payment] ✓ verified ({result.reason}) — Pro unlocked")
+    await ctx.send(sender, CompletePayment(transaction_id=msg.transaction_id))
+    await _chat_to(ctx, sender, req.session_id, (
+        "✅ **Payment confirmed — Pro unlocked!** 🎉\n\n"
+        f"Amount: ${req.amount:.2f} {req.currency}\n"
+        f"Rail: `{req.rail}`\n"
+        f"Reference: `{req.reference}`\n\n"
+        "Pro features are now active for this session. Ask me for a "
+        "**detailed coaching plan** to see what changed."
+    ))
+
+
+@_payment_proto.on_message(RejectPayment)
+async def _on_reject(ctx: Context, sender: str, msg: RejectPayment) -> None:
+    """The buyer declined the invoice."""
+    ctx.logger.info(f"[payment] ← RejectPayment from {sender}: {msg.reason}")
+    req = payments.request_for_buyer(sender)
+    if req:
+        payments.cancel_request(req.id)
+        _active_payment.pop(req.session_id, None)
+        await _chat_to(ctx, sender, req.session_id, (
+            "👍 No problem — payment cancelled and nothing was charged.\n\n"
+            "BudgetBuddy Pro is still one click away whenever you want it."
+        ))
+
+
+def _find_request_by_reference(reference: str) -> str:
+    """Look up a request id by its protocol reference."""
+    if not reference:
+        return ""
+    for req in payments.all_requests():
+        if req.reference == reference:
+            return req.id
+    return ""
+
+
+async def _chat_to(ctx: Context, recipient: str, session_id: str, text: str) -> None:
+    """Send a plain chat message (used by the payment handlers)."""
+    await ctx.send(
+        recipient,
+        ChatMessage(
+            timestamp=datetime.now(timezone.utc),
+            msg_id=uuid.uuid4(),
+            content=[TextContent(type="text", text=text)],
+        ),
+    )
+
+
+host_agent.include(_payment_proto, publish_manifest=True)
 
 
 # ── interactive cards (Phase 6) ───────────────────────────────────────
@@ -295,7 +411,13 @@ def _card_for_intent(intent: str, session_id: str, analysis=None, logger=None) -
             )
 
         if intent == PAYMENT:
-            req = payments.create_pro_request()
+            # Reference the request that was actually sent, not a new one.
+            request_id = _active_payment.get(session_id)
+            req = payments.get_request(request_id) if request_id else None
+            if req is None:
+                req = payments.request_for_session(session_id)
+            if req is None:
+                return {}
             from core.payments import PRO_PRICE, PRO_DESCRIPTION
             return cards.as_metadata(
                 "review",
@@ -503,19 +625,63 @@ def _subscriptions_reply(session_id: str) -> str:
     return "\n".join(lines)
 
 
-def _payment_reply() -> str:
+async def _payment_reply(ctx: Context, session_id: str, buyer: str = "") -> str:
+    """Create a payment request and (when we know the buyer) send it.
+
+    The RequestPayment is a real Agent Payment Protocol message: the
+    buyer answers with CommitPayment or RejectPayment, and the
+    ``_payment_proto`` handlers above finish the job.
+    """
     from core.payments import PRO_PRICE, PRO_DESCRIPTION
-    from .services import payments
-    req = payments.create_pro_request()
-    return payments.format_request(req)
+
+    req = payments.create_pro_request(session_id=session_id, buyer=buyer)
+    req.recipient = host_agent.address
+
+    # Record the attempt on the session.  Without this the session row
+    # only appears when Pro is granted, and a REFUSED payment would
+    # leave no trace at all — "no Pro" must be provable, not merely
+    # absent.
+    store.get_or_create(session_id)
+
+    if not buyer:
+        # No counterparty (local REST) — describe the invoice instead.
+        return payments.format_request(req)
+
+    request_msg = payments.build_request_payment(req)
+    await ctx.send(buyer, request_msg)
+    _active_payment[session_id] = req.id
+    ctx.logger.info(
+        f"[payment] → RequestPayment to {buyer}  "
+        f"ref={req.reference}  rail={req.rail}"
+    )
+
+    rail_note = {
+        "stripe": "Pay by card with Stripe Checkout.",
+        "fet_direct": "Pay on-chain with FET (testnet).",
+    }.get(req.rail, "Confirm with the payment card below.")
+
+    return (
+        "🔓 **Unlock BudgetBuddy Pro**\n\n"
+        f"📦 {PRO_DESCRIPTION}\n"
+        f"💰 Amount: ${PRO_PRICE:.2f} USD (one-time)\n"
+        f"🆔 Request ID: `{req.id}`\n"
+        f"🔑 Reference: `{req.reference}`\n\n"
+        f"{rail_note}\n"
+        "I have sent you a payment request — approve it and Pro turns on "
+        "the moment the payment is verified."
+    )
 
 
 # ── routing (shared by the REST endpoint and the chat protocol) ───────
-async def route(ctx: Context, session_id: str, text: str) -> str:
+async def route(ctx: Context, session_id: str, text: str, buyer: str = "") -> str:
     """Detect intent, route to the right sub-agent, return a reply string.
 
     Used by both the local REST endpoint and the ASI:One chat handler,
     so every transport sees identical behaviour.
+
+    ``buyer`` is the address that should receive a payment request.  The
+    chat handler passes the ASI:One sender; the local REST endpoint has
+    no buyer, so the payment request is described but not sent.
     """
     intent = detect_intent(text)
     ctx.logger.info(f"[host] intent: {intent}")
@@ -576,7 +742,7 @@ async def route(ctx: Context, session_id: str, text: str) -> str:
     # ── PAYMENT (in-process) ──
     if intent == PAYMENT:
         ctx.logger.info("[host] handling payment in-process")
-        return _payment_reply()
+        return await _payment_reply(ctx, sid, buyer)
 
     # ── HELP ──
     return _HELP_TEXT

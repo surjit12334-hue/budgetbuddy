@@ -78,6 +78,23 @@ class SessionStore:
 
     # ── convenience helpers ─────────────────────────────────────────────
 
+    def set_pro(self, session_id: str, enabled: bool = True) -> None:
+        """Persist the Pro unlock for a session.
+
+        Read-modify-write: ``update_session`` replaces the whole blob, so
+        the rest of the session (transactions, history) must be carried
+        over explicitly.
+        """
+        session = self.get_or_create(session_id)
+        session["pro"] = bool(enabled)
+        session["pro_at"] = datetime.now().isoformat() if enabled else None
+        self.update_session(session_id, session)
+
+    def is_pro(self, session_id: str) -> bool:
+        """True when this session has unlocked Pro."""
+        session = self.get_session(session_id)
+        return bool(session and session.get("pro"))
+
     def save_transactions(self, session_id: str, transactions: List[Transaction]):
         session = self.get_or_create(session_id)
         session["transactions"] = [t.to_dict() for t in transactions]

@@ -225,20 +225,66 @@ Then, in order:
 | 3 | `What subscriptions do I have?` | Recurring list with monthly + annual totals |
 | 4 | `I want to save $3000 by August` | Monthly/weekly/daily target |
 | 5 | `Split this $90 dinner with Alice and Bob` | Even split, 3 ways |
-| 6 | `How do I unlock Pro?` | Payment request, status PENDING |
+| 6 | `How do I unlock Pro?` | A real `RequestPayment` (Agent Payment Protocol) + a checkout card |
 
 *(The full 38-row sample lives at `samples/sample_bank.csv`.)*
+
+---
+
+## Payments — the Agent Payment Protocol, for real
+
+BudgetBuddy is the **seller** in Fetch.ai's
+[Agent Payment Protocol](https://innovationlab.fetch.ai/resources/docs/agent-transaction/agent-payment-protocol):
+
+```
+RequestPayment  →  CommitPayment | RejectPayment      (buyer answers)
+CommitPayment   →  CompletePayment | CancelPayment    (seller answers)
+```
+
+The rails are pluggable (`PAYMENT_RAIL`):
+
+| Rail | What it is | Needs |
+|------|------------|-------|
+| `bb_commit` *(default)* | The buyer signs the seller's per-request challenge with its uAgents identity key; the seller verifies the signature against the sender's `agent1q…` address | nothing |
+| `stripe` | Real card payments via Stripe Checkout | `STRIPE_SECRET_KEY` + `STRIPE_PUBLISHABLE_KEY` |
+| `fet_direct` | On-chain FET on MultiversX | `AGENT_WALLET_ADDRESS` + `PAYMENT_NETWORK` |
+
+`auto` picks the first rail that is actually usable. **Whatever the rail, a failed
+verification is answered with `CancelPayment` — never with an unlock.** A forged
+signature, a wrong amount, a wrong reference, a replayed commit and a double-pay
+are all rejected (`tests/test_payments.py`).
+
+See it work, end to end, against a running Bureau:
+
+```bash
+./run.sh &                                   # the seller
+.venv/bin/python tools/payment_demo.py      # → CompletePayment, Pro unlocked
+DEMO_FORGE=1  .venv/bin/python tools/payment_demo.py   # → CancelPayment, no Pro
+DEMO_REJECT=1 .venv/bin/python tools/payment_demo.py   # → declined, no Pro
+```
+
+The demo spawns a **real buyer agent** that speaks the real protocol over the real
+transport — it is not a mock. The Pro flag is persisted per session, so the unlock
+survives a restart.
 
 ---
 
 ## Testing
 
 ```bash
-.venv/bin/python tests/smoke.py           # 55 assertions — every core module
+.venv/bin/python tests/smoke.py           # 56 assertions — every core module
 .venv/bin/python tests/test_adversarial.py # 45 cases — hostile input, fuzz, 500 rows
 .venv/bin/python tests/test_outage.py      # 14 cases — LLM outage transparency
 .venv/bin/python tests/test_chat.py        # 17 cases — Chat Protocol + sessions
 .venv/bin/python tests/demo.py             # full 6-turn conversation
+```
+
+Cards and payments:
+
+```bash
+.venv/bin/python tests/test_cards.py       # 198 checks — ASI:One card schema conformance
+.venv/bin/python tests/test_cards_live.py  #  51 checks — cards attached + round-trip in chat
+.venv/bin/python tests/test_payments.py    #  69 checks — payment conformance + forgery/replay
 ```
 
 For the multi-agent layer (Bureau must be running):
@@ -249,7 +295,7 @@ For the multi-agent layer (Bureau must be running):
 .venv/bin/python tests/test_fallback.py   # sub-agent-death recovery
 ```
 
-**Current status:** 55/55 smoke · 45/45 adversarial · 14/14 outage · 17/17 chat · 6/6 fallback · 7/7 HTTP — all green.
+**Current status: 511/511 assertions green** across 11 test files.
 
 ---
 
@@ -300,13 +346,15 @@ budgetbuddy/
 │   ├── services.py        # shared singletons
 │   ├── subagents.py       # Ingest, Analyst, Coach, Goal, Splitter
 │   ├── bus.py             # AgentBus: timeout + in-process fallback
-│   ├── host.py            # ACP host, Chat Protocol, REST /submit + /health
+│   ├── host.py            # ACP host, Chat Protocol, Payment Protocol (seller), REST
+│   ├── buyer.py           # buyer-role agent that pays an invoice
 │   └── run.py             # Bureau entrypoint
 ├── samples/sample_bank.csv
-├── tests/                 # smoke, adversarial, outage, phase2, fallback, chat
+├── tests/                 # smoke, adversarial, outage, phase2, fallback, chat, cards, payments
 ├── tools/
 │   ├── redact_csv.py      # anonymise a real export
 │   ├── preflight.py       # Phase 5 readiness check
+│   ├── payment_demo.py    # live Agent Payment Protocol round-trip
 │   └── send_chat.py       # send a Chat Protocol message via Agentverse
 ├── run_local.py           # the terminal simulator
 ├── run.sh / sim.sh        # launchers
@@ -326,9 +374,9 @@ See [`ROADMAP.md`](ROADMAP.md) for the full plan. Progress:
 | 1 | The Brain | ✅ |
 | 2 | The Agents | ✅ |
 | 3 | Hardening | ✅ |
-| 4 | Docs | 🔄 |
-| 5 | Going Live (ASI:One) | ⬜ |
-| 6 | Interactive Cards + Payment | ⬜ |
+| 4 | Docs | ✅ |
+| 5 | Going Live (ASI:One) | ✅ |
+| 6 | Interactive Cards + Payment | ✅ |
 | 7 | Demo Assets | ⬜ |
 | 8 | Submission | ⬜ |
 

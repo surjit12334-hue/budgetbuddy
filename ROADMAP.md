@@ -148,7 +148,29 @@
       with identical text. A rejected payload also degrades to text, and building a card is
       wrapped so a card bug can never cost the user their answer.
       Guarded by `tests/test_cards_live.py` section [8].
-- [ ] **6.4** Testnet faucet → real Payment Protocol request → Pro unlock — *Done when:* payment completes in-chat
+- [x] **6.4** Testnet faucet → real Payment Protocol request → Pro unlock — *Done when:* payment completes in-chat
+      BudgetBuddy is the **seller** in the official Agent Payment Protocol
+      (`Protocol(spec=payment_protocol_spec, role="seller")`): it sends `RequestPayment`,
+      handles `CommitPayment` / `RejectPayment`, and answers with `CompletePayment` /
+      `CancelPayment`. The rails are pluggable via `PAYMENT_RAIL` — `stripe` (real card),
+      `fet_direct` (on-chain MultiversX), and `bb_commit` (the credential-free default, where
+      the buyer signs the seller's per-request challenge with its uAgents identity key and
+      the seller verifies it with `Identity.verify_digest` against the sender's `agent1q…`
+      address). **Verification can fail in every rail** — a failed check is answered with
+      `CancelPayment`, never with an unlock.
+      *Proven live against the running Bureau* (`tools/payment_demo.py`, a real buyer agent
+      speaking the real protocol over the real transport):
+      - happy path → `RequestPayment` → `CommitPayment` → **verified** → `CompletePayment` →
+        "✅ Payment confirmed — Pro unlocked!" and `pro=true` persisted in the session store
+      - forged signature (signed by a key that is **not** the sender's address) →
+        `CancelPayment: signature does not verify against the sender's agent address`,
+        session row created, `pro` **absent**
+      - buyer declines → `RejectPayment`, session row created, `pro` **absent**
+      Guarded by `tests/test_payments.py` — **69/69** (forged signature, wrong
+      amount/currency/rail/reference, replay, expired request and double-pay all rejected).
+      *Note:* the on-chain `fet_direct` rail still needs a funded testnet wallet; the legacy
+      Cosmos Fetch.ai endpoints this wallet is addressed on are decommissioned, so the
+      `fetch1…` address cannot be funded from this sandbox. `bb_commit` needs no credentials.
 
 > **✅ Phase 6 gate:** Judge sees a card-driven flow and one credible payment.
 

@@ -27,6 +27,20 @@ fi
 trap 'echo; echo "👋 keepalive stopping"; exit 0' INT TERM
 
 PORT="${HOST_PORT:-8001}"
+LOCKFILE="/tmp/budgetbuddy-keepalive-${PORT}.lock"
+
+# ── single-instance guard ─────────────────────────────────────────────
+# Two keepalives fighting over the same port is a self-inflicted outage:
+# each restarts the other's Bureau and they crash-loop on
+# "[Errno 98] address already in use".  Take an exclusive lock so only
+# one keepalive can supervise a given port.
+exec 9>"$LOCKFILE"
+if ! flock -n 9; then
+  echo "❌ Another keepalive is already supervising port $PORT."
+  echo "   (lock: $LOCKFILE)  Nothing to do — refusing to start a second one."
+  exit 1
+fi
+echo $$ > "$LOCKFILE"
 
 # ── reap a stale Bureau holding the port ──────────────────────────────
 # Without this, a leftover `agents.run` keeps port $PORT bound, every new
@@ -45,6 +59,16 @@ for pid in $(port_holder); do
   kill -9 "$pid" 2>/dev/null || true
 done
 sleep 1
+
+# Wait for the port to actually be released.  A just-killed Bureau can
+# hold the socket in TIME_WAIT for a moment; starting the replacement
+# too early is exactly the "address already in use" crash loop.
+for _ in $(seq 1 20); do
+  if ! ss -ltn 2>/dev/null | grep -q ":${PORT}\b"; then
+    break
+  fi
+  sleep 0.5
+done
 
 echo "♻️  BudgetBuddy keepalive — Ctrl-C to stop"
 while true; do

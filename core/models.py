@@ -104,6 +104,15 @@ class PaymentRequest:
     status: str = "pending"  # pending | paid | cancelled | expired
     created_at: datetime = field(default_factory=datetime.now)
     paid_at: Optional[datetime] = None
+    # ── Agent Payment Protocol fields ──
+    session_id: str = ""          # which conversation asked for Pro
+    buyer: str = ""               # agent address expected to pay
+    rail: str = ""                # payment_method (bb_commit/stripe/fet_direct)
+    reference: str = ""           # unique id echoed back in the commit
+    challenge: str = ""           # nonce the buyer signs to commit
+    transaction_id: str = ""      # rail-specific proof of payment
+    expires_at: Optional[datetime] = None
+    recipient: str = ""           # where funds should be sent
 
     def to_dict(self) -> dict:
         return {
@@ -114,6 +123,14 @@ class PaymentRequest:
             "status": self.status,
             "created_at": self.created_at.isoformat(),
             "paid_at": self.paid_at.isoformat() if self.paid_at else None,
+            "session_id": self.session_id,
+            "buyer": self.buyer,
+            "rail": self.rail,
+            "reference": self.reference,
+            "challenge": self.challenge,
+            "transaction_id": self.transaction_id,
+            "expires_at": self.expires_at.isoformat() if self.expires_at else None,
+            "recipient": self.recipient,
         }
 
     @classmethod
@@ -126,4 +143,14 @@ class PaymentRequest:
             status=d.get("status", "pending"),
             created_at=datetime.fromisoformat(d["created_at"]),
             paid_at=datetime.fromisoformat(d["paid_at"]) if d.get("paid_at") else None,
+            session_id=d.get("session_id", ""),
+            buyer=d.get("buyer", ""),
+            rail=d.get("rail", ""),
+            reference=d.get("reference", ""),
+            challenge=d.get("challenge", ""),
+            transaction_id=d.get("transaction_id", ""),
+            expires_at=(
+                datetime.fromisoformat(d["expires_at"]) if d.get("expires_at") else None
+            ),
+            recipient=d.get("recipient", ""),
         )
