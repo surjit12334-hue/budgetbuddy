@@ -13,7 +13,7 @@ from .models import Goal
 from .state import SessionStore
 from .parser import parse_any
 from .categorizer import Categorizer
-from .analyzer import Analyzer
+from .analyzer import Analyzer, is_subscription, is_bill
 from .llm import LLMClient
 from .coach import Coach
 from .goal import GoalCalculator
@@ -148,26 +148,53 @@ class Orchestrator:
             return "I need your transaction data first. Paste it and I'll find your subscriptions!"
 
         analysis = self.analyzer.analyze(txns)
-        subs = analysis.recurring_items
-        if not subs:
+        # Discretionary subscriptions only — rent/utilities recur too but
+        # are bills, not something you can "cancel".
+        subs = [s for s in analysis.recurring_items if is_subscription(s)]
+        bills = [s for s in analysis.recurring_items if is_bill(s)]
+
+        if not subs and not bills:
             return (
-                "I didn't find any obvious recurring subscriptions in your data. "
+                "I didn't find any obvious recurring charges in your data. "
                 "They might be mixed with other charges."
             )
 
-        lines = ["═══ Recurring Subscriptions ═══", ""]
-        total = 0.0
-        for s in subs:
-            lines.append(f"  {s['merchant']:<20} ${s['amount']:>8,.2f}/mo")
-            total += s["amount"]
+        lines: list[str] = []
 
-        lines += [
-            "",
-            f"  {'TOTAL':<20} ${total:>8,.2f}/mo",
-            f"  {'ANNUAL':<20} ${total * 12:>8,.2f}/yr",
-            "",
-            f"💡 You have {len(subs)} subscription(s). Review which ones you actually use!",
-        ]
+        if subs:
+            lines += ["═══ Recurring Subscriptions ═══", ""]
+            total = 0.0
+            for s in subs:
+                lines.append(f"  {s['merchant']:<22} ${s['amount']:>8,.2f}/mo")
+                total += s["amount"]
+
+            lines += [
+                "",
+                f"  {'TOTAL':<22} ${total:>8,.2f}/mo",
+                f"  {'ANNUAL':<22} ${total * 12:>8,.2f}/yr",
+                "",
+                f"💡 You have {len(subs)} subscription(s). Review which ones you actually use!",
+            ]
+
+        # Bills recur too, but you can't "cancel" your rent — reporting
+        # them separately keeps the subscription total honest.
+        if bills:
+            if lines:
+                lines.append("")
+            bill_total = sum(b["amount"] for b in bills)
+            lines += [
+                "── Fixed Bills (not subscriptions) ──",
+                "",
+            ]
+            for b in bills:
+                lines.append(f"  {b['merchant']:<22} ${b['amount']:>8,.2f}/mo")
+            lines += [
+                "",
+                f"  {'TOTAL':<22} ${bill_total:>8,.2f}/mo",
+                "",
+                "💡 These are recurring obligations, not subscriptions.",
+            ]
+
         return "\n".join(lines)
 
     def _handle_goal(self, session_id: str, text: str) -> str:

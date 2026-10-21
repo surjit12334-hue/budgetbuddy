@@ -6,7 +6,7 @@ raw transaction lines never leave the machine.
 
 from typing import Optional
 
-from .analyzer import AnalysisResult
+from .analyzer import AnalysisResult, is_subscription
 from .llm import LLMClient
 
 COACH_SYSTEM_PROMPT = """\
@@ -47,6 +47,7 @@ class Coach:
         sub_lines = "\n".join(
             f"  - {r['merchant']}: ${r['amount']:,.2f}/mo"
             for r in analysis.recurring_items
+            if is_subscription(r)
         ) or "  (none detected)"
 
         prompt = f"""\
@@ -104,12 +105,8 @@ Recurring Charges:
                     "Set a monthly cap here."
                 )
 
-        # Subscriptions
-        subs = [
-            s
-            for s in analysis.recurring_items
-            if s["category"] in ("subscriptions", "entertainment")
-        ]
+        # Subscriptions — discretionary only (mirrors analyzer.is_subscription).
+        subs = [s for s in analysis.recurring_items if is_subscription(s)]
         if subs:
             total = sum(s["amount"] for s in subs)
             lines.append(

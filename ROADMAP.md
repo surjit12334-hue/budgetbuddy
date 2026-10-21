@@ -62,6 +62,7 @@
 - [x] **3.1** `run_local.py` — terminal REPL (`/demo`, `/reset`, paste mode) — ✅ REPL works (`sim.sh`), all 6 demo turns run
 - [x] **3.2** Adversarial tests: no headers, semicolons, tabs, £/€/₹, ambiguous dates, empty paste, 500-row file, garbage text — ✅ 45/45 cases graceful, never a traceback (also 1000 fuzz inputs, and fixed a real `csv.reader` crash)
 - [x] **3.3** LLM-outage drill (remove key mid-session) — ✅ 14/14 tests; deterministic insights take over silently, no error leaks
+- [x] **3.3b** Bug fix from the demo run: rent was reported as a subscription — ✅ recurring charges are now split into **subscriptions** ($95.96/mo — Netflix, Spotify, Adobe, Planet Fitness), **fixed bills** (rent, utilities — $1,392.40/mo) and **habitual** (a repeated coffee; neither); `tests/test_subscriptions.py` 35/35
 - [ ] **3.4** You paste your own real bank CSV (anonymized) — ⏳ **your step**: use `tools/redact_csv.py` to anonymize, then `./sim.sh` and paste. *Done when:* real data produces a report you'd actually use
 
 > **Phase 3 gate: code-side PASSED** — 6-turn flow passes on sample data; all failure paths recover gracefully (45/45 adversarial, 14/14 outage). Awaiting 3.4 (your real CSV) to fully close.

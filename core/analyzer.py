@@ -13,7 +13,7 @@ FIXED_CATEGORIES = {"rent", "utilities", "subscriptions", "insurance", "educatio
 NEED_CATEGORIES = {"groceries", "rent", "utilities", "transport", "health"}
 WANT_CATEGORIES = {"dining", "entertainment", "shopping"}
 
-# Merchals we *know* are subscription services (single-month detection)
+# Merchants we *know* are subscription services (single-month detection)
 KNOWN_SUBSCRIPTION_MERCHANTS = {
     "netflix", "spotify", "hulu", "disney+", "hbo", "hbo max",
     "adobe", "adobe creative cloud", "microsoft 365", "office 365",
@@ -22,6 +22,61 @@ KNOWN_SUBSCRIPTION_MERCHANTS = {
     "patreon", "planet fitness", "la fitness", "classpass", "peloton",
     "audible", "paramount+", "peacock",
 }
+
+# ─────────────────── what counts as a "subscription" ───────────────────
+
+# Categories whose recurring charges are FIXED BILLS, not subscriptions.
+# Rent and utilities repeat monthly at a stable amount, so a naive
+# "same merchant, similar amount, >= 2 times" rule flags them as
+# subscriptions. Reporting rent as a $1,200/mo "subscription" badly
+# overstates the total (and the "cancel unused subscriptions" advice is
+# nonsense for housing). These are tracked as recurring BILLS instead.
+BILL_CATEGORIES = {"rent", "utilities", "insurance", "education", "loans", "taxes"}
+
+# Keywords marking merchants that are bills/obligations rather than
+# discretionary subscriptions, regardless of how they're categorised.
+BILL_MERCHANT_KEYWORDS = {
+    "rent", "mortgage", "lease", "landlord", "apartment",
+    "electric", "water", "gas bill", "utility", "internet", "broadband",
+    "comcast", "xfinity", "verizon fios", "spectrum", "at&t", "t-mobile",
+    "phone bill", "insurance", "premium insurance", "tuition",
+    "student loan", "car loan", "loan payment", "property tax",
+}
+
+
+def is_subscription(item: Dict) -> bool:
+    """True only for discretionary subscriptions (streaming, software, gym).
+
+    A recurring CHARGE is not automatically a subscription: rent and
+    utilities recur too. Real-world budgets put them in separate buckets,
+    and "you have N forgotten subscriptions — cancel them" must never
+    refer to someone's housing.
+    """
+    merchant = str(item.get("merchant", "")).lower()
+
+    if item.get("category") in BILL_CATEGORIES:
+        return False
+    if any(kw in merchant for kw in BILL_MERCHANT_KEYWORDS):
+        return False
+
+    return item.get("category") in ("subscriptions", "entertainment", "health") or any(
+        kw in merchant for kw in KNOWN_SUBSCRIPTION_MERCHANTS
+    )
+
+
+def is_bill(item: Dict) -> bool:
+    """True for recurring FIXED BILLS: rent, utilities, insurance, phone.
+
+    Deliberately narrower than "everything that isn't a subscription".
+    A daily coffee habit recurs at a stable amount, but it is neither a
+    subscription nor a fixed bill — lumping it in with rent would make the
+    fixed-bill total meaningless.
+    """
+    merchant = str(item.get("merchant", "")).lower()
+
+    if item.get("category") in BILL_CATEGORIES:
+        return True
+    return any(kw in merchant for kw in BILL_MERCHANT_KEYWORDS)
 
 
 # ──────────────────────── result container ────────────────────────────
@@ -148,7 +203,22 @@ class Analyzer:
             if m not in seen or item["amount"] > seen[m]["amount"]:
                 seen[m] = item
 
-        return sorted(seen.values(), key=lambda x: x["amount"], reverse=True)
+        items = sorted(seen.values(), key=lambda x: x["amount"], reverse=True)
+
+        # Label each charge so callers never have to guess. "subscription"
+        # is discretionary (streaming, software, gym); "bill" is a fixed
+        # obligation (rent, utilities, insurance). Habitual spending that
+        # merely repeats (e.g. a daily coffee) is neither — it's "habitual",
+        # so it appears in neither the subscription nor the bill total.
+        for item in items:
+            if is_subscription(item):
+                item["kind"] = "subscription"
+            elif is_bill(item):
+                item["kind"] = "bill"
+            else:
+                item["kind"] = "habitual"
+
+        return items
 
     # ──────────────────── insight generation ─────────────────────────
 
@@ -182,13 +252,9 @@ class Analyzer:
                     f"📊 Your biggest expense: '{top_cat}' at ${top_amt:,.2f} ({pct:.0f}% of spending)."
                 )
 
-        # Subscriptions
-        subs = [
-            s
-            for s in r.recurring_items
-            if s["category"] in ("subscriptions", "entertainment", "health")
-            or any(kw in s["merchant"].lower() for kw in KNOWN_SUBSCRIPTION_MERCHANTS)
-        ]
+        # Subscriptions — discretionary only. is_subscription() excludes
+        # rent/utilities, which also recur but are not subscriptions.
+        subs = [s for s in r.recurring_items if is_subscription(s)]
         if subs:
             total_sub = sum(s["amount"] for s in subs)
             names = [s["merchant"] for s in subs]
