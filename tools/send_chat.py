@@ -22,8 +22,7 @@ from datetime import datetime, timezone
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 from uagents_core.contrib.protocols.chat import ChatMessage, TextContent
-from uagents_core.identity import Identity
-from uagents.communication import send_message
+from uagents import Agent, Context
 
 
 def host_address() -> str:
@@ -45,57 +44,69 @@ async def main() -> int:
     dest = host_address()
     print(f"→ to     {dest[:40]}…")
 
-    # A throwaway identity carries the round-trip.
-    sender = Identity.from_seed("budgetbuddy chat probe sender v1", 0)
+    # The sender must itself be reachable, or Agentverse cannot route the
+    # reply back. Use a mailbox-enabled Agent (registered on Agentverse)
+    # rather than a bare Identity.
+    from uagents import Agent, Context
 
-    msg = ChatMessage(
-        timestamp=datetime.now(timezone.utc),
-        msg_id=uuid.uuid4(),
-        content=[TextContent(type="text", text=text)],
+    probe = Agent(
+        name="budgetbuddy-chat-probe",
+        seed="budgetbuddy chat probe sender v1",
+        mailbox=True,
+        agentverse=True,
+        log_level="CRITICAL",
     )
 
-    print(f"→ query  {text[:60]!r}")
-    reply = await send_message(
-        destination=dest,
-        message=msg,
-        response_type=ChatMessage,
-        sender=sender,
-        timeout=timeout,
-    )
+    got: list[str] = []
+
+    @probe.on_message(ChatMessage)
+    async def _on_reply(ctx: Context, sender: str, msg: ChatMessage) -> None:
+        for item in msg.content:
+            if isinstance(item, TextContent) and item.text.strip():
+                got.append(item.text)
+        await ctx.stop()
+
+    sent = False
+
+    @probe.on_interval(period=2.0)
+    async def _send(ctx: Context) -> None:
+        nonlocal sent
+        if sent:
+            return
+        sent = True
+        print(f"→ query  {text[:60]!r}")
+        await ctx.send(
+            dest,
+            ChatMessage(
+                timestamp=datetime.now(timezone.utc),
+                msg_id=uuid.uuid4(),
+                content=[TextContent(type="text", text=text)],
+            ),
+        )
+
+    async def _timeout() -> None:
+        await asyncio.sleep(timeout)
+        await probe.stop()
+
+    asyncio.create_task(_timeout())
+    await probe.run_async()
 
     print()
-    if isinstance(reply, ChatMessage):
-        out = "\n".join(
-            i.text for i in reply.content if isinstance(i, TextContent) and i.text.strip()
-        )
-        if out:
-            print("=" * 60)
-            print("  REPLY FROM BUDGETBUDDY")
-            print("=" * 60)
-            print(out)
-            print("=" * 60)
-            print("✅ chat protocol round-trip works")
-            return 0
+    if got:
+        print("=" * 60)
+        print("  REPLY FROM BUDGETBUDDY")
+        print("=" * 60)
+        print(got[0])
+        print("=" * 60)
+        print("✅ chat protocol round-trip works")
+        return 0
 
-    # A FAILED MsgStatus means Agentverse couldn't hand it to the agent.
-    # In practice that is the missing mailbox (404: Target agent not found).
-    status = str(getattr(reply, "status", "")).lower()
-    detail = getattr(reply, "detail", "") or ""
-    if "failed" in status or "Target agent not found" in detail or "404" in detail:
-        print("❌ Agentverse was reached, but could not deliver the message.")
-        print()
-        print("   Almost always this means the MAILBOX does not exist yet.")
-        print("   Look for this line just above:")
-        print("     '404: Target agent not found'  → mailbox missing")
-        print()
-        print("   In Agentverse:")
-        print("     1. Open the agent's page → Agent Inspector / Mailbox")
-        print("     2. Click 'Create Mailbox'")
-        print("   Then re-run this command — no restart of the Bureau needed.")
-        return 1
-
-    print(f"❌ no usable reply (got {type(reply).__name__}: {detail[:100]!r})")
-    print("   → is the Bureau running? (./keepalive.sh)")
+    print("❌ no reply captured within the timeout")
+    print("   The Bureau log tells the story — look for:")
+    print("     '[chat] ← asi1  …'   message arrived")
+    print("     '[chat] → asi1  …'   reply sent")
+    print("   If both appear, the transport works; the reply just needs a")
+    print("   resolvable sender (ASI:One has one — a bare probe may not).")
     return 1
 
 
