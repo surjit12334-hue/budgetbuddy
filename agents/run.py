@@ -65,7 +65,13 @@ def build_bureau() -> Bureau:
 
     bureau = Bureau(agents=agents, port=BUREAU_PORT)
 
-    # Bridge the host agent's REST endpoint into the Bureau server
+    # Bridge ONLY the host's REST endpoints into the Bureau server.
+    # Every uAgent otherwise registers its own /agent_info, /messages,
+    # /connect, /disconnect — giving the Bureau 6 handlers for each path
+    # and making it reply "400 missing header: x-uagents-address". That
+    # breaks the Agentverse Inspector, which needs a single /agent_info
+    # to create the mailbox. Sub-agents are internal (AgentBus only), so
+    # their inspector routes are disabled in subagents.py.
     _copy_rest_endpoints(bureau, host_agent)
 
     return bureau

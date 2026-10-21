@@ -30,6 +30,10 @@ ingest_agent = Agent(
     name="ingest",
     seed="budgetbuddy ingest agent seed v1",
     log_level="WARNING",
+    # Sub-agents are internal (called via the AgentBus, never over HTTP).
+    # Disabling the inspector keeps /agent_info unambiguous for the HOST,
+    # which is what the Agentverse Inspector queries to create the mailbox.
+    enable_agent_inspector=False,
 )
 
 
@@ -63,6 +67,10 @@ analyst_agent = Agent(
     name="analyst",
     seed="budgetbuddy analyst agent seed v1",
     log_level="WARNING",
+    # Sub-agents are internal (called via the AgentBus, never over HTTP).
+    # Disabling the inspector keeps /agent_info unambiguous for the HOST,
+    # which is what the Agentverse Inspector queries to create the mailbox.
+    enable_agent_inspector=False,
 )
 
 
@@ -95,6 +103,10 @@ coach_agent = Agent(
     name="coach",
     seed="budgetbuddy coach agent seed v1",
     log_level="WARNING",
+    # Sub-agents are internal (called via the AgentBus, never over HTTP).
+    # Disabling the inspector keeps /agent_info unambiguous for the HOST,
+    # which is what the Agentverse Inspector queries to create the mailbox.
+    enable_agent_inspector=False,
 )
 
 
@@ -122,6 +134,10 @@ goal_agent = Agent(
     name="goal",
     seed="budgetbuddy goal agent seed v1",
     log_level="WARNING",
+    # Sub-agents are internal (called via the AgentBus, never over HTTP).
+    # Disabling the inspector keeps /agent_info unambiguous for the HOST,
+    # which is what the Agentverse Inspector queries to create the mailbox.
+    enable_agent_inspector=False,
 )
 
 _MONTHS = (
@@ -181,6 +197,10 @@ splitter_agent = Agent(
     name="splitter",
     seed="budgetbuddy splitter agent seed v1",
     log_level="WARNING",
+    # Sub-agents are internal (called via the AgentBus, never over HTTP).
+    # Disabling the inspector keeps /agent_info unambiguous for the HOST,
+    # which is what the Agentverse Inspector queries to create the mailbox.
+    enable_agent_inspector=False,
 )
 
 
