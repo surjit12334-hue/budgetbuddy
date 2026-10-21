@@ -159,7 +159,12 @@ async def _handle_chat(ctx: Context, sender: str, msg: ChatMessage) -> None:
     )
 
 
-host_agent.include(_chat_proto)
+# Publish the chat-protocol MANIFEST, not just its digest. Without this
+# the Almanac record shows "metadata: None" and the agent advertises a
+# protocol digest with no description of how to talk to it — which is
+# what ASI:One uses to decide whether the agent can be chatted with.
+# https://uagents.fetch.ai/docs/guides/public_private_agents
+host_agent.include(_chat_proto, publish_manifest=True)
 
 
 # ── fallbacks (in-process, no agent involved) ──────────────────────────

@@ -112,12 +112,26 @@ This is the part that needs **you** — it cannot be automated.
 1. Go to **https://agentverse.ai** and sign in (create a free account if needed).
 2. In the sidebar click **Agents** → **My Agents**.
 3. Find your agent. Because it self-registered, it may already appear; if not,
-   click **+ Create Agent** → **Blank Agent** and paste the **host agent
-   address** from Step 1.
+   click **+ Create Agent** → **External Integration → uAgents** (NOT *Blank
+   Agent*: that creates an unrelated **hosted** agent with no link to your
+   Bureau — delete it if you made one).
 4. Fill in / confirm:
    - **Name:** `BudgetBuddy`
    - **Description:** *A multi-agent personal-finance coach. Paste your bank data, get analysis, set savings goals, split bills, and unlock Pro — all in chat.*
-   - **Visibility:** **Public** (a judge must be able to see it)
+
+   ⚠️ **There is no "Visibility" dropdown.** Public vs private is set in
+   **code**, not the dashboard: an agent is public when it publishes its
+   protocol manifests. BudgetBuddy already does
+   (`host_agent.include(_chat_proto, publish_manifest=True)`) and the log
+   confirms it:
+
+   ```
+   INFO: [ host]: Manifest published successfully: AgentChatProtocol
+   ```
+
+   If that line is missing, ASI:One sees a bare protocol digest with no
+   description of how to talk to the agent — a real cause of discovery
+   failures.
 5. Open the agent's page and go to the **Agent Inspector** / **Mailbox** tab.
 6. Click **Create Mailbox**.
 
