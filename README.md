@@ -192,7 +192,11 @@ Every dependency is free. Nothing requires a credit card.
 
 ## Copy-Paste Demo Script
 
-The exact 6 turns. Paste the whole block into `./sim.sh` after `/paste`:
+The full run — exact prompts, the **actual** replies captured from a live
+Bureau, the wow moments, the video shot list and a troubleshooting table —
+lives in [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md).
+
+The short version: paste the CSV, then ask in this order.
 
 ```csv
 Date,Description,Amount
@@ -220,11 +224,11 @@ Then, in order:
 
 | # | Type this | You should see |
 |---|-----------|----------------|
-| 1 | *(the CSV above)* | `✅ Parsed N transactions!` |
-| 2 | `How am I doing?` | Financial health report + insights |
-| 3 | `What subscriptions do I have?` | Recurring list with monthly + annual totals |
-| 4 | `I want to save $3000 by August` | Monthly/weekly/daily target |
-| 5 | `Split this $90 dinner with Alice and Bob` | Even split, 3 ways |
+| 1 | *(the CSV above)* | `✅ Parsed 18 transactions!` |
+| 2 | `How am I doing?` | Financial health report + a dashboard card |
+| 3 | `What subscriptions do I have?` | Recurring list with monthly + annual totals, a carousel card, and rent *excluded* |
+| 4 | `I want to save $3000 by August` | Monthly/weekly/daily target + whether you're on track |
+| 5 | `Split this $90 dinner with Alice and Bob` | Even split, 3 ways, clickable card |
 | 6 | `How do I unlock Pro?` | A real `RequestPayment` (Agent Payment Protocol) + a checkout card |
 
 *(The full 38-row sample lives at `samples/sample_bank.csv`.)*
@@ -387,7 +391,7 @@ See [`ROADMAP.md`](ROADMAP.md) for the full plan. Progress:
 | 4 | Docs | ✅ |
 | 5 | Going Live (ASI:One) | ✅ |
 | 6 | Interactive Cards + Payment | ✅ |
-| 7 | Demo Assets | ⬜ |
+| 7 | Demo Assets | 🔄 — [script + shot list ready](docs/DEMO_SCRIPT.md); video + shared chat link are yours |
 | 8 | Submission | ⬜ |
 
 ---

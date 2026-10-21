@@ -193,11 +193,34 @@
 
 **Goal:** The two headline deliverables.
 
-- [ ] **7.1** Final demo script — exact 6 prompts, expected replies, "wow moments" flagged — *Done when:* script final
-- [ ] **7.2** Record 2–3 min video (shot list + narration beats provided) — *Done when:* video uploaded to YouTube (unlisted)
-- [ ] **7.3** Generate ASI:One Shared Chat URL of a clean run — *Done when:* link opens the conversation
-- [ ] **7.4** Collect Agentverse Profile URL(s) — *Done when:* links ready
-- [ ] **7.5** Polish Devpost text — own it in your voice — *Done when:* text final
+- [x] **7.1** Final demo script — exact 6 prompts, expected replies, "wow moments" flagged — 🤝 *Done when:* script final
+      `docs/DEMO_SCRIPT.md` — the six prompts, the **actual replies captured from a live
+      Bureau** (not written by hand), six flagged wow moments, a pre-flight check, a
+      troubleshooting table, a 10-shot video list with narration beats, and the narration
+      rules ("say *this is real* once per segment, and show the evidence the moment you
+      say it"). The README's short demo section now points at it.
+- [ ] **7.2** Record 2–3 min video (shot list + narration beats provided) — 👤 **your step**
+      *Done when:* video uploaded to YouTube (unlisted)
+      The shot list and narration beats are ready in `docs/DEMO_SCRIPT.md` §3 — 10 shots,
+      timed, with the line to say for each. The most important shot is #8: the forged
+      payment being refused.
+- [ ] **7.3** Generate ASI:One Shared Chat URL of a clean run — 👤 **your step**
+      *Done when:* link opens the conversation
+      How to produce it: `docs/DEMO_SCRIPT.md` §4 — run the six prompts in ASI:One, then
+      use ASI:One's **Share** action on that conversation.
+- [x] **7.4** Collect Agentverse Profile URL(s) — 🤝 *Done when:* links ready
+      <https://agentverse.ai/agents/details/agent1qwv44y4c4yz47j58zhylm7rnev6qk4su0km42k69f8345ytt5s90jyxgaa9>
+      Verified live: the page returns **200**, and the Almanac record shows
+      `"status": "active"`, `"type": "mailbox"`, endpoint
+      `https://agentverse.ai/v2/agents/mailbox/submit`, **3 protocols**.
+      *(👤 Worth opening the page once yourself — the profile body is client-side
+      rendered, so the description can't be verified from a plain `curl`.)*
+- [ ] **7.5** Polish Devpost text — own it in your voice — 🤝 *Done when:* text final
+      `docs/DEVPOST.md` is updated to match what is actually built (real payment protocol,
+      real cards, the mailbox-not-tunnel story, the honest $0 stack) and to include the
+      new challenges and accomplishments. The **voice** pass is yours: re-read it as if
+      you wrote it, and change the words that don't sound like you.
+      Only two placeholders are left: the Shared Chat URL and the video link.
 
 ---
 
