@@ -121,8 +121,19 @@ This is the part that needs **you** — it cannot be automated.
 5. Open the agent's page and go to the **Agent Inspector** / **Mailbox** tab.
 6. Click **Create Mailbox**.
 
-> ✅ **Done when:** the mailbox exists. The Bureau terminal will stop logging
-> `Agent mailbox not found` — **within seconds, no restart needed**.
+> ✅ **Done when:** the mailbox exists. Confirm it **without leaving the terminal**:
+>
+> ```bash
+> .venv/bin/python tools/send_chat.py "Help"
+> ```
+>
+> - **Before creating it** → `404: Target agent not found` (Agentverse reached
+>   your agent, but there's no mailbox to deliver to).
+> - **After creating it** → BudgetBuddy's help menu prints, and you get
+>   `✅ chat protocol round-trip works`.
+>
+> That command is the fastest way to know if the mailbox is live — you can run
+> it immediately after clicking **Create Mailbox**, no restart needed.
 
 7. Copy the **Agent Profile URL**:
    ```
@@ -163,7 +174,8 @@ just appears here.
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
 | No reply | Bureau not running | Re-check the `./keepalive.sh` terminal |
-| No reply | Mailbox not created | Redo Step 4.6 |
+| No reply | Mailbox not created | Redo Step 4.6, then `tools/send_chat.py "Help"` |
+| `404: Target agent not found` | Mailbox not created | Redo Step 4.6 |
 | `mailbox not found` still logging | Mailbox not created yet | Redo Step 4.6 |
 | Works locally, not ASI:One | Chat protocol not enabled | Redo Step 5 |
 | No reply, no logs at all | Request never arrived | Re-check Step 3 (`status: active`) |

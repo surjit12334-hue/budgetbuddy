@@ -155,6 +155,16 @@ Then create the mailbox in the Agentverse **Agent Inspector** and chat with the
 agent from ASI:One. Step-by-step instructions, including troubleshooting:
 [`docs/REGISTRATION.md`](docs/REGISTRATION.md).
 
+You can verify the chat path from the terminal, without the UI:
+
+```bash
+.venv/bin/python tools/send_chat.py "Help"
+```
+
+Before the mailbox exists this prints `404: Target agent not found` (Agentverse
+reached the agent but had nowhere to deliver). After creating it, BudgetBuddy's
+help menu prints back.
+
 > **Why not a tunnel?** uAgents reserves `/submit` and rejects it from any
 > non-local client, so a custom REST route can never be reached externally.
 > The Chat Protocol + mailbox is the mechanism uAgents is built around.
@@ -296,7 +306,8 @@ budgetbuddy/
 ├── tests/                 # smoke, adversarial, outage, phase2, fallback, chat
 ├── tools/
 │   ├── redact_csv.py      # anonymise a real export
-│   └── preflight.py       # Phase 5 readiness check
+│   ├── preflight.py       # Phase 5 readiness check
+│   └── send_chat.py       # send a Chat Protocol message via Agentverse
 ├── run_local.py           # the terminal simulator
 ├── run.sh / sim.sh        # launchers
 ├── keepalive.sh           # auto-restart wrapper for the demo window
