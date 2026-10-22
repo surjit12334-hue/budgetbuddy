@@ -44,10 +44,38 @@ from uagents_core.contrib.protocols.chat import (  # noqa: E402
     ChatMessage, ChatAcknowledgement, TextContent, MetadataContent,
 )
 
-# Keep in sync with agents/host.py — asserted by tests/test_payments.py.
+from agents.identity import known_address, live_bureau_address  # noqa: E402
+
+# The last-resort address — the one the demo agent uses when nothing
+# else is known.  It matches the seed the live Bureau ships with.
 DEFAULT_HOST_ADDRESS = "agent1qwv44y4c4yz47j58zhylm7rnev6qk4su0km42k69f8345ytt5s90jyxgaa9"
 
-HOST_ADDRESS = os.environ.get("CARD_DEMO_HOST", "").strip() or DEFAULT_HOST_ADDRESS
+
+def _resolve_host_address() -> str:
+    """Find the seller without importing ``agents.host``.
+
+    Importing it would instantiate a phantom host agent in this
+    process, and uAgents would deliver the buyer's messages "locally"
+    to it instead of to the real Bureau.
+
+    So ask, in order:
+      1. ``CARD_DEMO_HOST`` — an explicit override
+      2. the running Bureau's own health endpoint — the only answer that
+         cannot be wrong, because it is served by the process that is
+         actually answering ASI:One
+      3. the address derived from the seed we resolve
+      4. the last-resort constant
+    """
+    env = os.environ.get("CARD_DEMO_HOST", "").strip()
+    if env:
+        return env
+    live = live_bureau_address("host")
+    if live:
+        return live
+    return known_address("host") or DEFAULT_HOST_ADDRESS
+
+
+HOST_ADDRESS = _resolve_host_address()
 DEMO_PORT = int(os.environ.get("CARD_DEMO_PORT", "8016"))
 DEMO_SEED = os.environ.get("CARD_DEMO_SEED", "budgetbuddy card demo buyer v1")
 SHOW_TEXT = os.environ.get("CARD_DEMO_TEXT", "").lower() in ("1", "true", "yes")

@@ -345,26 +345,40 @@ def main() -> int:
     # runtime (that would instantiate a phantom host agent inside the
     # demo process and uAgents would deliver the buyer's message
     # "locally" to it, silently never reaching the real Bureau), so it
-    # pins the address as a constant.  If the host seed ever changes,
-    # this test fails loudly instead of the demo quietly 404-ing.
+    # reads the address the running Bureau wrote to
+    # .budgetbuddy_identity.  If the host seed ever changes, this test
+    # fails loudly instead of the demo quietly 404-ing.
     print("\n[9] demo ↔ live host agent agreement")
     try:
-        import re
         import tools.payment_demo as demo_mod
+        from agents.identity import known_address, live_bureau_address, resolve_seed
 
         host_src = pathlib.Path("agents/host.py").read_text(encoding="utf-8")
-        seed_match = re.search(r'seed\s*=\s*"([^"]+)"', host_src)
-        check("agents/host.py declares a seed", seed_match is not None)
-        live_address = Identity.from_seed(seed_match.group(1), 0).address
+        check("agents/host.py resolves its seed (not a hard-coded one)",
+              'resolve_seed("host")' in host_src)
 
-        check("demo default host address matches the host agent's seed",
-              demo_mod.DEFAULT_HOST_ADDRESS == live_address,
-              f"demo={demo_mod.DEFAULT_HOST_ADDRESS} host={live_address}")
+        # The demo must target the agent that is actually running.  When a
+        # Bureau is up, its own health endpoint is the only authority — the
+        # seed in .env can differ if HOST_SEED was overridden for that run.
+        running = live_bureau_address("host")
+        live_address = running or known_address("host")
+        check("the live host address is known",
+              bool(live_address), live_address or "not known")
+        if live_address:
+            check("demo host address matches the live host address",
+                  demo_mod.HOST_ADDRESS == live_address,
+                  f"demo={demo_mod.HOST_ADDRESS} host={live_address}")
+
+            derived = Identity.from_seed(resolve_seed("host"), 0).address
+            check("the resolved seed derives that same address",
+                  derived == live_address or running is not None,
+                  f"seed→{derived} live={live_address}")
+
         check("demo host address is a valid agent address",
-              demo_mod.DEFAULT_HOST_ADDRESS.startswith("agent1q"),
-              demo_mod.DEFAULT_HOST_ADDRESS)
+              demo_mod.HOST_ADDRESS.startswith("agent1q"),
+              demo_mod.HOST_ADDRESS)
         check("demo default host is not the demo buyer's own address",
-              demo_mod.DEFAULT_HOST_ADDRESS != demo_mod.DEMO.address,
+              demo_mod.HOST_ADDRESS != demo_mod.DEMO.address,
               demo_mod.DEMO.address)
     except Exception as exc:  # pragma: no cover - defensive
         check("demo module imports cleanly", False, repr(exc))

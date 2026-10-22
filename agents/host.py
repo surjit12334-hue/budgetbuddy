@@ -37,6 +37,7 @@ from .messages import (
     SplitRequest, SplitResponse,
 )
 from .bus import get_bus, new_request_id
+from .identity import resolve_seed
 from .services import (
     store, categorizer, analyzer, coach, goal_calc, splitter, cards, payments,
 )
@@ -89,7 +90,7 @@ def detect_intent(text: str) -> str:
 
 host_agent = Agent(
     name="host",
-    seed="budgetbuddy host agent seed v1",
+    seed=resolve_seed("host"),
     log_level="INFO",
     # Agentverse mailbox: the agent dials out to Agentverse, so it is
     # reachable from ASI:One with NO public URL / tunnel required.
@@ -103,6 +104,12 @@ host_agent = Agent(
     ),
     publish_agent_details=True,
 )
+
+# The host's address is recorded by agents/run.py, when the Bureau is
+# actually started.  Recording it here (at import time) would let any
+# process that merely imports this module — a test, a preflight check —
+# overwrite the file with whatever address *it* resolved, and the demo
+# tools would then talk to an agent that does not exist.
 
 # uAgents reserves /submit for envelope routing and blocks REST
 # registration on reserved paths.  We temporarily flip _init_done so

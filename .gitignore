@@ -1,6 +1,11 @@
 # ── secrets ──
 .env
 
+# ── this machine's agent identity ──
+# The per-machine seed and the agents' addresses.  Generated on first
+# run so every clone of the repo gets its own Agentverse identity.
+.budgetbuddy_identity
+
 # ── python ──
 .venv/
 venv/

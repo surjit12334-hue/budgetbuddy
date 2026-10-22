@@ -43,26 +43,38 @@ from uagents_core.contrib.protocols.payment import (  # noqa: E402
 from uagents_core.identity import Identity  # noqa: E402
 
 from core.payments import BB_METADATA_KEY, sign_commitment  # noqa: E402
+from agents.identity import known_address, live_bureau_address  # noqa: E402
+
+# The last-resort address — the one the demo agent uses when nothing
+# else is known.  It matches the seed the live Bureau ships with.
+DEFAULT_HOST_ADDRESS = "agent1qwv44y4c4yz47j58zhylm7rnev6qk4su0km42k69f8345ytt5s90jyxgaa9"
+
 
 def _resolve_host_address() -> str:
     """Find the seller.
 
-    The host agent's seed lives in ``agents/host.py``.  We must NOT
+    The host agent's address lives in ``agents/host.py``.  We must NOT
     import that module here: importing it instantiates a *second* host
     agent inside the demo process, and uAgents then delivers the
     buyer's message "locally" to that phantom agent (whose message
     queue is never serviced) instead of sending it to the real Bureau.
 
-    So the address is a constant, and ``tests/test_payments.py``
-    asserts it still matches ``agents.host.host_agent.address`` so a
-    seed change cannot silently break the demo.
-    ``HOST_ADDRESS`` overrides it.
+    So ask, in order:
+      1. ``HOST_ADDRESS`` — an explicit override
+      2. the running Bureau's own health endpoint — the only answer that
+         cannot be wrong, because it is served by the process that is
+         actually answering ASI:One
+      3. the address derived from the seed we resolve
+      4. the last-resort constant above
     """
-    return os.environ.get("HOST_ADDRESS", "").strip() or DEFAULT_HOST_ADDRESS
+    env = os.environ.get("HOST_ADDRESS", "").strip()
+    if env:
+        return env
+    live = live_bureau_address("host")
+    if live:
+        return live
+    return known_address("host") or DEFAULT_HOST_ADDRESS
 
-
-# Keep in sync with agents/host.py — asserted by tests/test_payments.py.
-DEFAULT_HOST_ADDRESS = "agent1qwv44y4c4yz47j58zhylm7rnev6qk4su0km42k69f8345ytt5s90jyxgaa9"
 
 HOST_ADDRESS = _resolve_host_address()
 DEMO_PORT = int(os.environ.get("DEMO_BUYER_PORT", "8015"))

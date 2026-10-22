@@ -22,6 +22,7 @@ from .subagents import (
     ingest_agent, analyst_agent, coach_agent, goal_agent, splitter_agent,
 )
 from .bus import init_bus
+from .identity import record_addresses
 
 AGENT_TIMEOUT = int(os.environ.get("AGENT_TIMEOUT_SECONDS", "15"))
 BUREAU_PORT = int(os.environ.get("HOST_PORT", "8001"))
@@ -64,6 +65,20 @@ def build_bureau() -> Bureau:
     )
 
     bureau = Bureau(agents=agents, port=BUREAU_PORT)
+
+    # Record the addresses of the agents that are ACTUALLY running, so the
+    # demo tools (card_demo.py, payment_demo.py) can find this Bureau
+    # without importing the host module — importing it would spawn a
+    # phantom host agent inside their process and uAgents would deliver
+    # their messages "locally" to it instead of to this one.
+    record_addresses({
+        "host": host_agent.address,
+        "ingest": ingest_agent.address,
+        "analyst": analyst_agent.address,
+        "coach": coach_agent.address,
+        "goal": goal_agent.address,
+        "splitter": splitter_agent.address,
+    })
 
     # Bridge ONLY the host's REST endpoints into the Bureau server.
     # Every uAgent otherwise registers its own /agent_info, /messages,

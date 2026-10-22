@@ -12,6 +12,7 @@ from uagents import Agent, Context
 from core.parser import parse_any
 from core.models import Goal
 
+from .identity import resolve_seed
 from .messages import (
     IngestRequest, IngestResponse,
     AnalysisRequest, AnalysisResponse,
@@ -28,7 +29,7 @@ from .services import (
 
 ingest_agent = Agent(
     name="ingest",
-    seed="budgetbuddy ingest agent seed v1",
+    seed=resolve_seed("ingest"),
     log_level="WARNING",
     # Sub-agents are internal (called via the AgentBus, never over HTTP).
     # Disabling the inspector keeps /agent_info unambiguous for the HOST,
@@ -65,7 +66,7 @@ async def _handle_ingest(ctx: Context, sender: str, msg: IngestRequest):
 
 analyst_agent = Agent(
     name="analyst",
-    seed="budgetbuddy analyst agent seed v1",
+    seed=resolve_seed("analyst"),
     log_level="WARNING",
     # Sub-agents are internal (called via the AgentBus, never over HTTP).
     # Disabling the inspector keeps /agent_info unambiguous for the HOST,
@@ -101,7 +102,7 @@ async def _handle_analysis(ctx: Context, sender: str, msg: AnalysisRequest):
 
 coach_agent = Agent(
     name="coach",
-    seed="budgetbuddy coach agent seed v1",
+    seed=resolve_seed("coach"),
     log_level="WARNING",
     # Sub-agents are internal (called via the AgentBus, never over HTTP).
     # Disabling the inspector keeps /agent_info unambiguous for the HOST,
@@ -132,7 +133,7 @@ async def _handle_coach(ctx: Context, sender: str, msg: CoachRequest):
 
 goal_agent = Agent(
     name="goal",
-    seed="budgetbuddy goal agent seed v1",
+    seed=resolve_seed("goal"),
     log_level="WARNING",
     # Sub-agents are internal (called via the AgentBus, never over HTTP).
     # Disabling the inspector keeps /agent_info unambiguous for the HOST,
@@ -195,13 +196,18 @@ async def _handle_goal(ctx: Context, sender: str, msg: GoalRequest):
 
 splitter_agent = Agent(
     name="splitter",
-    seed="budgetbuddy splitter agent seed v1",
+    seed=resolve_seed("splitter"),
     log_level="WARNING",
     # Sub-agents are internal (called via the AgentBus, never over HTTP).
     # Disabling the inspector keeps /agent_info unambiguous for the HOST,
     # which is what the Agentverse Inspector queries to create the mailbox.
     enable_agent_inspector=False,
 )
+
+# The sub-agents' addresses are recorded by agents/run.py, when the
+# Bureau is actually started — not here at import time, so that a
+# process that merely imports this module cannot overwrite the file
+# with an address that belongs to a different seed.
 
 
 @splitter_agent.on_message(SplitRequest, replies=SplitResponse)
