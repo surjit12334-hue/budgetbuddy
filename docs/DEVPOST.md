@@ -162,9 +162,14 @@ card, and nothing needs a hosted server.
   path unlocks Pro, the forged path gets a `CancelPayment` and no Pro. A
   forged signature, a wrong amount, a wrong reference, a replayed commit and
   a double-pay are all rejected.
-- **Hardening that found real bugs.** 518 assertions across 11 test files —
-  45 adversarial cases, fuzz, outage drills, 198 card-schema checks, 69
+- **Hardening that found real bugs.** 568 assertions across 11 test files —
+  93 adversarial cases (the demo CSV mangled every way a real bank export
+  gets mangled), fuzz, outage drills, 198 card-schema checks, 71
   payment-conformance checks — all green *after* fixing what they exposed.
+  The demo-CSV suite alone caught three parser bugs: `Dr/Cr` suffixes losing
+  their sign (`1200.00 DR` was read as **+1200 income**), European decimal
+  commas being mangled (`12,50` → **1250**), and pipe-delimited exports
+  producing garbage merchant names.
 - **Graceful degradation everywhere.** Kill the LLM, kill a sub-agent — the
   user still gets a useful answer. Both are covered by tests.
 - **Reproducibility.** A stranger can clone the repo and run the full demo in

@@ -183,7 +183,7 @@ Every dependency is free. Nothing requires a credit card.
 | LLM fallback | **Ollama** (local) | $0 | optional, if you run it |
 | Storage | **SQLite** | $0 | stdlib, 24 h TTL purge |
 | Currency FX | **frankfurter.app** | $0 | free public API |
-| Tunnelling | **ngrok** free tier | $0 | for Phase 5 live hosting |
+| Transport | **Agentverse mailbox** | $0 | the agent dials out — no tunnel, no public URL |
 | Hosting | your laptop | $0 | a Bureau process |
 
 **Privacy note:** only *aggregate* figures (totals, category sums) are ever sent to an LLM. Raw transaction lines never leave the machine.
@@ -277,7 +277,9 @@ survives a restart.
 
 ```bash
 .venv/bin/python tests/smoke.py           # 56 assertions — every core module
-.venv/bin/python tests/test_adversarial.py # 45 cases — hostile input, fuzz, 500 rows
+.venv/bin/python tests/test_adversarial.py # 93 cases — hostile input, fuzz, 500 rows,
+                                           #   and the demo CSV mangled every way a
+                                           #   real bank export gets mangled
 .venv/bin/python tests/test_outage.py      # 14 cases — LLM outage transparency
 .venv/bin/python tests/test_chat.py        # 17 cases — Chat Protocol + sessions
 .venv/bin/python tests/demo.py             # full 6-turn conversation

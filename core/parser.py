@@ -96,6 +96,53 @@ def parse_date(date_str: str) -> Tuple[Optional[datetime], bool]:
     return None, False
 
 
+def _normalize_number(s: str) -> str:
+    """Rewrite a numeric string that mixes '.' and ',' into a float literal.
+
+    Bank exports arrive in both conventions and they disagree:
+
+        "1,234.56"   US    → 1234.56
+        "1.234,56"   EU    → 1234.56
+        "12,50"      EU    → 12.50   (comma = decimal point)
+        "1,234"      US    → 1234    (comma = thousands)
+        "1.234"      EU    → 1234    (dot  = thousands)
+
+    Rules used here (the usual spreadsheet heuristic):
+      - both separators present  → the RIGHTMOST one is the decimal point
+      - one separator, 2 digits after it → decimal point
+      - one separator, 3 digits after it → thousands separator
+      - several groups of 3 digits → thousands separator
+    """
+    if "." not in s and "," not in s:
+        return s
+
+    if "." in s and "," in s:
+        # Rightmost separator wins.
+        if s.rfind(".") > s.rfind(","):
+            s = s.replace(",", "")
+        else:
+            s = s.replace(".", "").replace(",", ".")
+        return s
+
+    sep = "." if "." in s else ","
+    parts = s.split(sep)
+
+    if len(parts) > 2 and all(len(p) == 3 for p in parts[1:]):
+        # 1,234,567 / 1.234.567 → thousands grouping
+        return "".join(parts)
+
+    if len(parts) == 2:
+        tail = parts[1]
+        if len(tail) == 2:
+            # 12,50 → 12.50  (European decimal comma)
+            return parts[0] + "." + tail
+        # 1,234 / 1.234 → thousands separator
+        return "".join(parts)
+
+    # >2 groups that are not uniform 3-digit groups: rightmost is the decimal.
+    return sep.join(parts[:-1]).replace(sep, "") + "." + parts[-1]
+
+
 def parse_amount(amount_str: str) -> Tuple[Optional[float], str]:
     """Return (signed_value, currency_code).  None on unparseable."""
     if not amount_str:
@@ -110,10 +157,17 @@ def parse_amount(amount_str: str) -> Tuple[Optional[float], str]:
             currency = code
             break
 
-    # Strip currency symbols / codes / Dr-Cr suffixes
+    # Strip currency symbols / codes
     s = re.sub(r"(C\$|A\$|\$|€|£|₹|¥)", "", s)
     s = re.sub(r"\b(USD|EUR|GBP|INR|JPY|CAD|AUD)\b", "", s, flags=re.IGNORECASE)
-    s = re.sub(r"\b(Dr|Cr|DEBIT|CREDIT)\b\.?\s*$", "", s, flags=re.IGNORECASE)
+
+    # Dr/Cr marker carries the sign: DR = money out, CR = money in.
+    # The marker is authoritative — "1200.00 DR" is money leaving the account.
+    marker_sign: Optional[int] = None
+    marker = re.search(r"\b(Dr|Cr|DEBIT|CREDIT)\b\.?\s*$", s, flags=re.IGNORECASE)
+    if marker:
+        marker_sign = -1 if marker.group(1).lower() in ("dr", "debit") else 1
+        s = s[: marker.start()].strip()
     s = s.strip()
 
     # Parenthesised negatives: (50.00)
@@ -122,9 +176,6 @@ def parse_amount(amount_str: str) -> Tuple[Optional[float], str]:
         is_negative = True
         s = s[1:-1].strip()
 
-    # Remove thousands separators
-    s = s.replace(",", "").strip()
-
     # Explicit sign
     if s.startswith("-"):
         is_negative = not is_negative
@@ -132,11 +183,17 @@ def parse_amount(amount_str: str) -> Tuple[Optional[float], str]:
     elif s.startswith("+"):
         s = s[1:]
 
+    # Thousands vs decimal separators
+    s = _normalize_number(s.strip())
+
     try:
         value = float(s)
-        return (-value if is_negative else value), currency
     except ValueError:
         return None, currency
+
+    if marker_sign is not None:
+        return (abs(value) * marker_sign), currency
+    return (-value if is_negative else value), currency
 
 
 def _looks_like_date(s: str) -> bool:
@@ -382,7 +439,10 @@ def parse_freetext(text: str) -> List[Transaction]:
 
 def parse_any(text: str) -> List[Transaction]:
     """Try CSV first, then free-text.  Returns [] when nothing parses."""
-    has_delim = any(d in text for d in (",", ";", "\t"))
+    # Every delimiter the CSV parser understands must also be recognised here,
+    # otherwise a pipe-delimited export falls through to the free-text parser
+    # and every description comes back as garbage.
+    has_delim = any(d in text for d in (",", ";", "\t", "|"))
     looks_csv = has_delim and text.count("\n") >= 1
 
     if looks_csv:

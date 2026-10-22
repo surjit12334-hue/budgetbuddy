@@ -60,12 +60,12 @@
 **Goal:** Break it on purpose before a judge does.
 
 - [x] **3.1** `run_local.py` — terminal REPL (`/demo`, `/reset`, paste mode) — ✅ REPL works (`sim.sh`), all 6 demo turns run
-- [x] **3.2** Adversarial tests: no headers, semicolons, tabs, £/€/₹, ambiguous dates, empty paste, 500-row file, garbage text — ✅ 45/45 cases graceful, never a traceback (also 1000 fuzz inputs, and fixed a real `csv.reader` crash)
+- [x] **3.2** Adversarial tests: no headers, semicolons, tabs, £/€/₹, ambiguous dates, empty paste, 500-row file, garbage text — ✅ 93/93 cases graceful, never a traceback (also 1000 fuzz inputs, and fixed a real `csv.reader` crash). Extended with **section G: the demo CSV under hostile transformations** — `samples/sample_bank.csv` mangled the way a real bank export gets mangled (CRLF, BOM, `;`/`|`/tab delimiters, no header, reordered columns, extra Balance column, EU decimal commas, `Dr/Cr` suffixes, debit/credit columns, truncated row, blank/garbage amount, null byte, redacted copy): the same 38 transactions, the same $3,524.72 total and the same money story (subscriptions $95.96 / bills $1,392.40) every time. That section exposed **three real parser bugs**, now fixed in `core/parser.py`: `Dr/Cr` suffixes lost their sign (`1200.00 DR` read as **+1200 income**), EU separators were mangled (`12,50` → **1250**, `1.234,56` → **1.23456**), and pipe-delimited exports fell through to the free-text parser with garbage merchant names.
 - [x] **3.3** LLM-outage drill (remove key mid-session) — ✅ 14/14 tests; deterministic insights take over silently, no error leaks
 - [x] **3.3b** Bug fix from the demo run: rent was reported as a subscription — ✅ recurring charges are now split into **subscriptions** ($95.96/mo — Netflix, Spotify, Adobe, Planet Fitness), **fixed bills** (rent, utilities — $1,392.40/mo) and **habitual** (a repeated coffee; neither); `tests/test_subscriptions.py` 35/35
 - [ ] **3.4** You paste your own real bank CSV (anonymized) — ⏳ **your step**: use `tools/redact_csv.py` to anonymize, then `./sim.sh` and paste. *Done when:* real data produces a report you'd actually use
 
-> **Phase 3 gate: code-side PASSED** — 6-turn flow passes on sample data; all failure paths recover gracefully (45/45 adversarial, 14/14 outage). Awaiting 3.4 (your real CSV) to fully close.
+> **Phase 3 gate: code-side PASSED** — 6-turn flow passes on sample data; all failure paths recover gracefully (93/93 adversarial, 14/14 outage). Awaiting 3.4 (your real CSV) to fully close.
 
 ---
 
