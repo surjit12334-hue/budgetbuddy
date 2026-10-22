@@ -278,14 +278,14 @@ Collect these for the submission (Phase 7):
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `HOST_SEED` | *(required)* | Unique seed phrase → deterministic agent address |
+| `HOST_SEED` | *(optional)* | Pins the agent identity. Leave it unset and each machine generates its own seed once (kept in `.budgetbuddy_identity`), so two people never fight over the same Agentverse identity. Set it only to keep a known address — never copy someone else's seed |
 | `HOST_PORT` | `8001` | Port the Bureau serves on |
 | `HOST_ENDPOINT` | `http://localhost:8001` | Local endpoint |
 | `ENABLE_MAILBOX` | `true` | Connect the host to the Agentverse mailbox |
 | `ENABLE_AGENTVERSE` | `true` | Register the agent on Agentverse / Almanac |
 | `GEMINI_API_KEY` | *(empty)* | Optional LLM; app works without it |
 | `GEMINI_MODEL` | `gemini-3.8-flash` | Model name |
-| `ENABLE_CARDS` | `false` | Interactive cards (Phase 6) |
+| `ENABLE_CARDS` | `true` | Interactive cards (Phase 6) — additive, so turning it off never costs the user their answer |
 | `SESSION_TTL_HOURS` | `24` | Session/data purge window |
 | `AGENT_TIMEOUT_SECONDS` | `15` | Sub-agent timeout before fallback |
 

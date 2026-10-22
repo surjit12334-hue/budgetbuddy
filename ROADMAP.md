@@ -228,12 +228,42 @@
 
 **Goal:** Submitted early, sleeping well.
 
-- [ ] **8.1** Dry run: someone (or you, cold) follows the README from zero — *Done when:* reproduces the demo
-- [ ] **8.2** Fix the top 3 friction points that surfaced — *Done when:* smooth
+- [x] **8.1** Dry run: someone (or you, cold) follows the README from zero — *Done when:* reproduces the demo
+      ✅ **Done — and it caught real bugs.** A fresh `git clone` was run end-to-end:
+      clone (22 s) → venv + pip (35 s) → `cp .env.example .env` → `./sim.sh` `/demo` →
+      the whole test suite → `./run.sh` → `POST /submit` → `tools/payment_demo.py` →
+      `tools/send_chat.py`. The demo itself ran perfectly on the sample data (6/6 turns,
+      518/518 assertions) — **but the published clone was not what we thought it was.**
+      Five findings:
+      1. **GitHub was 4 commits behind.** The published tree hard-coded the agent seed,
+         so *every clone shared the demo agent's identity* — a judge following the README
+         would have hijacked the demo agent's Agentverse mailbox and broken the live
+         demo for everyone. Root cause fixed by `agents/identity.py` (per-machine seed) —
+         **but it was unpushed.**
+      2. **The payment demo proved nothing on a clone** — it imported the host module,
+         spawned a phantom host agent, and reported "PAYMENT COMPLETED" while actually
+         talking to the *live* agent over the mailbox.
+      3. **`tools/send_chat.py` hung forever** on a clone (mailbox-enabled probe whose
+         mailbox a human must create in the Inspector) — no output, no timeout, had to
+         be killed by hand.
+      4. **The published identity hung on one git-ignored `.env` line.** Losing `.env`
+         silently changed the agent's address, orphaning the mailbox and every link
+         pointing at it. The identity file now records the *seed*, so the identity is
+         recoverable. Proven: with `.env` deleted, the agent still resolves to
+         `agent1qwv44y…`.
+      5. **Three different stale test counts** across the README (518) and the Devpost
+         draft (568) — now one number, kept in step with the suite.
+- [x] **8.2** Fix the top 3 friction points that surfaced — *Done when:* smooth
+      ✅ Findings 1–3 were one root cause (the unpushed identity fix) — pushed.
+      Finding 4 fixed in `agents/identity.py` + `tests/test_identity.py` (5 new checks).
+      Finding 5 fixed in the README + Devpost. Also: the README now lists every test
+      file and points at `./run_tests.sh`, and `HOST_SEED` is documented as **optional**
+      so nobody pins a shared identity by hand.
 - [ ] **8.3** Submit on Devpost — target **≥3 days before deadline** — *Done when:* submission confirmed
+      Still open — needs the two links from 7.2 / 7.3.
 - [ ] **8.4** Post-submit: keep agent alive for judge Q&A; note "operating since…" for the viability bonus — *Done when:* agent still replying
 
-> **✅ Phase 8 gate:** Submitted. Agent is live. You slept.
+> **Phase 8 gate — still open:** Submitted. Agent is live. You slept.
 
 ---
 

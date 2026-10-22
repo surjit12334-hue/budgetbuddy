@@ -145,9 +145,16 @@ card, and nothing needs a hosted server.
 - **A demo that lied to us.** The payment demo imported the host module to
   get its address, which instantiated a *phantom host agent* inside the demo
   process. uAgents then reported "Message dispatched locally" and the message
-  was never delivered — the demo would have passed while proving nothing. The
-  address is now pinned as a constant and a test asserts it still matches the
-  host's seed.
+  was never delivered — the demo would have passed while proving nothing.
+  The root cause was worse than the symptom: the seed was **hard-coded in the
+  source**, so every clone of the repo produced the *same* agent address. A
+  judge who followed our README would have claimed the demo agent's Agentverse
+  mailbox and hijacked the identity we had published. Identities are now
+  resolved per machine — a generated seed kept in `.budgetbuddy_identity` —
+  the demo tools ask the *running* Bureau who it is instead of importing the
+  host module, and a test proves the tool, the identity file and the live
+  agent all agree. We found this by cloning the repo fresh and running it
+  exactly as a stranger would.
 - **Two pydantics.** uAgents' `Model` is a pydantic **v1** `BaseModel`. Using
   pydantic v2's `Field` produced a `FieldInfo` that v1 could not serialise,
   and two test files died on it. The fix was one import.
@@ -162,7 +169,7 @@ card, and nothing needs a hosted server.
   path unlocks Pro, the forged path gets a `CancelPayment` and no Pro. A
   forged signature, a wrong amount, a wrong reference, a replayed commit and
   a double-pay are all rejected.
-- **Hardening that found real bugs.** 568 assertions across 11 test files —
+- **Hardening that found real bugs.** 585 assertions across 12 test files —
   93 adversarial cases (the demo CSV mangled every way a real bank export
   gets mangled), fuzz, outage drills, 198 card-schema checks, 71
   payment-conformance checks — all green *after* fixing what they exposed.

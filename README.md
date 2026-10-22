@@ -31,7 +31,7 @@ A conversation, not a dashboard:
     ⚠️ 4 forgotten subscriptions — Planet Fitness, Adobe, Netflix, Spotify
 
 👤  What subscriptions do I have?
-🤖  $1,493.51/mo  ·  $17,922.12/yr  → review what you actually use
+🤖  $95.96/mo  ·  $1,151.52/yr  → review what you actually use
 
 👤  I want to save $3000 by August
 🤖  $300.00/mo needed  ·  ✅ You're on track (surplus $3,224.72)
@@ -111,8 +111,12 @@ python3 -m venv .venv
 
 # 3. Configure (optional — everything works without an LLM key)
 cp .env.example .env
-#   edit .env: set HOST_SEED to any long unique phrase
 #   optionally add GEMINI_API_KEY (free: https://aistudio.google.com/apikey)
+#
+#   You do NOT need to set HOST_SEED.  Each machine gets its own agent
+#   identity automatically, generated once and remembered in
+#   .budgetbuddy_identity (git-ignored).  Two people running this at the
+#   same time never fight over the same Agentverse identity.
 ```
 
 ### Try it locally (no network needed)
@@ -282,13 +286,24 @@ survives a restart.
 
 ## Testing
 
+One command runs everything and prints a single total:
+
 ```bash
-.venv/bin/python tests/smoke.py           # 56 assertions — every core module
+./run_tests.sh            # every test file, one summary line, non-zero exit on failure
+```
+
+Or run them individually:
+
+```bash
+.venv/bin/python tests/smoke.py            # 56 assertions — every core module
 .venv/bin/python tests/test_adversarial.py # 93 cases — hostile input, fuzz, 500 rows,
                                            #   and the demo CSV mangled every way a
                                            #   real bank export gets mangled
 .venv/bin/python tests/test_outage.py      # 14 cases — LLM outage transparency
 .venv/bin/python tests/test_chat.py        # 17 cases — Chat Protocol + sessions
+.venv/bin/python tests/test_identity.py    # 17 cases — one agent identity, everywhere
+.venv/bin/python tests/test_subscriptions.py # 35 cases — subscriptions vs fixed bills
+.venv/bin/python tests/test_inspector.py   # 13 cases — Agentverse Inspector routes
 .venv/bin/python tests/demo.py             # full 6-turn conversation
 ```
 
@@ -297,7 +312,7 @@ Cards and payments:
 ```bash
 .venv/bin/python tests/test_cards.py       # 198 checks — ASI:One card schema conformance
 .venv/bin/python tests/test_cards_live.py  #  58 checks — cards attached + round-trip in chat
-.venv/bin/python tests/test_payments.py    #  69 checks — payment conformance + forgery/replay
+.venv/bin/python tests/test_payments.py    #  71 checks — payment conformance + forgery/replay
 ```
 
 Live, over the real network (the Bureau must be running):
@@ -311,11 +326,12 @@ For the multi-agent layer (Bureau must be running):
 
 ```bash
 ./run.sh &
-.venv/bin/python tests/test_phase2.py     # 6-turn flow over HTTP
-.venv/bin/python tests/test_fallback.py   # sub-agent-death recovery
+.venv/bin/python tests/test_phase2.py     # 7 checks — 6-turn flow over HTTP
+.venv/bin/python tests/test_fallback.py   # 6 checks — sub-agent-death recovery
 ```
 
-**Current status: 518/518 assertions green** across 11 test files.
+**Current status: 585/585 assertions green** across 12 test files (plus the
+6-turn `tests/demo.py`).
 
 ---
 
@@ -368,9 +384,11 @@ budgetbuddy/
 │   ├── bus.py             # AgentBus: timeout + in-process fallback
 │   ├── host.py            # ACP host, Chat Protocol, Payment Protocol (seller), REST
 │   ├── buyer.py           # buyer-role agent that pays an invoice
+│   ├── identity.py        # per-machine agent identity (seed → address)
 │   └── run.py             # Bureau entrypoint
 ├── samples/sample_bank.csv
-├── tests/                 # smoke, adversarial, outage, phase2, fallback, chat, cards, payments
+├── tests/                 # smoke, adversarial, outage, phase2, fallback, chat, cards,
+│                          #   payments, identity, subscriptions, inspector
 ├── tools/
 │   ├── redact_csv.py      # anonymise a real export
 │   ├── preflight.py       # Phase 5 readiness check
@@ -380,6 +398,7 @@ budgetbuddy/
 │   └── send_chat.py       # send a Chat Protocol message via Agentverse
 ├── run_local.py           # the terminal simulator
 ├── run.sh / sim.sh        # launchers
+├── run_tests.sh           # one-command test suite with a single summary
 ├── env.sh                 # shared .env loader (an exported var wins)
 ├── keepalive.sh           # auto-restart wrapper for the demo window
 └── ROADMAP.md             # the build plan + progress
