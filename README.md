@@ -161,9 +161,16 @@ You can verify the chat path from the terminal, without the UI:
 .venv/bin/python tools/send_chat.py "Help"
 ```
 
-Before the mailbox exists this prints `404: Target agent not found` (Agentverse
-reached the agent but had nowhere to deliver). After creating it, BudgetBuddy's
-help menu prints back.
+Before the mailbox exists this fails with `Unable to resolve destination
+endpoint` (Agentverse reached the agent but had nowhere to deliver). After
+creating it, BudgetBuddy's help menu prints back.
+
+Add `--sample` to paste the demo CSV first, so you get the real dashboard
+instead of "paste your spending data first":
+
+```bash
+.venv/bin/python tools/send_chat.py "How am I doing?" 120 --sample
+```
 
 > **Why not a tunnel?** uAgents reserves `/submit` and rejects it from any
 > non-local client, so a custom REST route can never be reached externally.

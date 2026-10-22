@@ -141,10 +141,17 @@ This is the part that needs **you** — it cannot be automated.
 > .venv/bin/python tools/send_chat.py "Help"
 > ```
 >
-> - **Before creating it** → `404: Target agent not found` (Agentverse reached
->   your agent, but there's no mailbox to deliver to).
+> - **Before creating it** → `Unable to resolve destination endpoint` (Agentverse
+>   reached your agent, but there's no mailbox to deliver to).
 > - **After creating it** → BudgetBuddy's help menu prints, and you get
 >   `✅ chat protocol round-trip works`.
+>
+> Add `--sample` to paste the demo CSV first and get the real dashboard
+> instead of "paste your spending data first":
+>
+> ```bash
+> .venv/bin/python tools/send_chat.py "How am I doing?" 120 --sample
+> ```
 >
 > That command is the fastest way to know if the mailbox is live — you can run
 > it immediately after clicking **Create Mailbox**, no restart needed.
@@ -189,6 +196,7 @@ just appears here.
 |---------|--------------|-----|
 | No reply | Bureau not running | Re-check the `./keepalive.sh` terminal |
 | No reply | Mailbox not created | Redo Step 4.6, then `tools/send_chat.py "Help"` |
+| `Unable to resolve destination endpoint` | Mailbox not created | Redo Step 4.6 |
 | `404: Target agent not found` | Mailbox not created | Redo Step 4.6 |
 | `mailbox not found` still logging | Mailbox not created yet | Redo Step 4.6 |
 | Works locally, not ASI:One | Chat protocol not enabled | Redo Step 5 |
