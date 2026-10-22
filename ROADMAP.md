@@ -265,7 +265,10 @@
       simulator parses 38 transactions → **585/585 assertions green**. The demo agent
       stayed `active`/mailbox/3 protocols on Agentverse throughout.
 - [ ] **8.3** Submit on Devpost — target **≥3 days before deadline** — *Done when:* submission confirmed
-      Still open — needs the two links from 7.2 / 7.3.
+      Still open — needs the two links from 7.2 / 7.3. The exact click-by-click
+      (prompts, capture, video shots, Devpost fields, keep-alive) is in
+      [`docs/SUBMISSION_RUNBOOK.md`](docs/SUBMISSION_RUNBOOK.md), and every
+      "you should see" in it was captured from a verified run.
 - [ ] **8.4** Post-submit: keep agent alive for judge Q&A; note "operating since…" for the viability bonus — *Done when:* agent still replying
 
 > **Phase 8 gate — still open:** Submitted. Agent is live. You slept.

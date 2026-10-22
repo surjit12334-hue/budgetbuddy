@@ -207,6 +207,10 @@ The full run — exact prompts, the **actual** replies captured from a live
 Bureau, the wow moments, the video shot list and a troubleshooting table —
 lives in [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md).
 
+Submitting the project? [`docs/SUBMISSION_RUNBOOK.md`](docs/SUBMISSION_RUNBOOK.md)
+is the step-by-step: capture the shared chat URL, record the video, fill the
+Devpost, submit, and keep the agent alive for judging.
+
 The short version: paste the CSV, then ask in this order.
 
 ```csv
