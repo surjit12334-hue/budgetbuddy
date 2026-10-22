@@ -254,11 +254,16 @@
       5. **Three different stale test counts** across the README (518) and the Devpost
          draft (568) — now one number, kept in step with the suite.
 - [x] **8.2** Fix the top 3 friction points that surfaced — *Done when:* smooth
-      ✅ Findings 1–3 were one root cause (the unpushed identity fix) — pushed.
-      Finding 4 fixed in `agents/identity.py` + `tests/test_identity.py` (5 new checks).
-      Finding 5 fixed in the README + Devpost. Also: the README now lists every test
-      file and points at `./run_tests.sh`, and `HOST_SEED` is documented as **optional**
+      ✅ Findings 1–3 were one root cause (the unpushed identity fix) — pushed as
+      `233ea01`. Finding 4 fixed in `agents/identity.py` + `tests/test_identity.py` (5 new
+      checks). Finding 5 fixed in the README + Devpost. Also: the README now lists every
+      test file and points at `./run_tests.sh`, and `HOST_SEED` is documented as **optional**
       so nobody pins a shared identity by hand.
+      **Re-verified against the real GitHub** after the push: a fresh
+      `git clone https://github.com/surjit12334-hue/budgetbuddy` → unedited `.env` →
+      **own identity `agent1q25ul73…`, not the demo's `agent1qwv44y…`** (no hijack) →
+      simulator parses 38 transactions → **585/585 assertions green**. The demo agent
+      stayed `active`/mailbox/3 protocols on Agentverse throughout.
 - [ ] **8.3** Submit on Devpost — target **≥3 days before deadline** — *Done when:* submission confirmed
       Still open — needs the two links from 7.2 / 7.3.
 - [ ] **8.4** Post-submit: keep agent alive for judge Q&A; note "operating since…" for the viability bonus — *Done when:* agent still replying
