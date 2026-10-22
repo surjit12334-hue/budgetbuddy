@@ -160,6 +160,56 @@ def main() -> int:
         check(f"{tool} targets the live host address",
               got == target, f"tool={got} live={target} err={proc.stderr[-160:]!r}")
 
+    # ── 5. the file records the SEED, so a lost .env is recoverable ───
+    print("\n[5] The identity file records the seed, not just the address")
+    import tempfile
+    import agents.identity as ident
+
+    with tempfile.TemporaryDirectory() as tmp:
+        original_file = ident.IDENTITY_FILE
+        original_env = os.environ.get("HOST_SEED")
+        try:
+            ident.IDENTITY_FILE = pathlib.Path(tmp) / "identity.json"
+            os.environ.pop("HOST_SEED", None)
+            ident.record_addresses({"host": "agent1qTESTHOSTADDRESS"})
+            stored = json.loads(ident.IDENTITY_FILE.read_text())
+            check("record_addresses() persists the base seed",
+                  bool(stored.get("base_seed")), str(stored)[:140])
+            check("the persisted seed is the one the addresses came from",
+                  stored.get("base_seed") == ident.base_seed(),
+                  f"stored={stored.get('base_seed')!r} now={ident.base_seed()!r}")
+            # Now simulate the disaster: the .env is gone (it is
+            # git-ignored), so HOST_SEED is unset and the only thing left
+            # is the identity file.  The agent must keep its identity.
+            recovered = ident.resolve_seed("host")
+            check("the seed is recovered from the file when HOST_SEED is unset",
+                  recovered == stored.get("base_seed"),
+                  f"recovered={recovered!r} stored={stored.get('base_seed')!r}")
+            check("the recovered seed still derives an agent1q address",
+                  (ident.derived_address("host") or "").startswith("agent1q"),
+                  ident.derived_address("host") or "none")
+        finally:
+            ident.IDENTITY_FILE = original_file
+            if original_env is not None:
+                os.environ["HOST_SEED"] = original_env
+
+    # On this machine the live file must agree with the live agent — if it
+    # does not, a lost .env would silently change the published identity.
+    live_file = {}
+    if IDENTITY_FILE.exists():
+        try:
+            live_file = json.loads(IDENTITY_FILE.read_text())
+        except ValueError:
+            live_file = {}
+    stored_seed = live_file.get("base_seed")
+    if stored_seed:
+        from uagents_core.identity import Identity
+        check("the live identity file's seed derives the live host address",
+              Identity.from_seed(stored_seed, 0).address == live,
+              f"seed={stored_seed!r} → {Identity.from_seed(stored_seed, 0).address} vs {live}")
+    else:
+        print("     (no seed recorded in the live identity file yet — skipped)")
+
     print("\n" + "=" * 60)
     print(f"RESULTS: {PASSED} passed, {FAILED} failed")
     print("=" * 60)

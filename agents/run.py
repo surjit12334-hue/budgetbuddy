@@ -22,7 +22,7 @@ from .subagents import (
     ingest_agent, analyst_agent, coach_agent, goal_agent, splitter_agent,
 )
 from .bus import init_bus
-from .identity import record_addresses
+from .identity import record_addresses, identity_summary
 
 AGENT_TIMEOUT = int(os.environ.get("AGENT_TIMEOUT_SECONDS", "15"))
 BUREAU_PORT = int(os.environ.get("HOST_PORT", "8001"))
@@ -117,6 +117,7 @@ def main() -> None:
     print()
     print(f"  REST endpoint:  POST http://localhost:{BUREAU_PORT}/submit")
     print(f"  Agent timeout:  {AGENT_TIMEOUT}s")
+    print(f"  {identity_summary()}")
     print("=" * 60)
     print()
     print("  → Create the Agentverse MAILBOX (one time, required for ASI:One):")

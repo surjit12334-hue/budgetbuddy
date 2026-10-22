@@ -148,6 +148,17 @@ def record_addresses(addresses: Dict[str, str]) -> None:
     known = dict(data.get("addresses") or {})
     known.update({k: v for k, v in addresses.items() if v})
     data["addresses"] = known
+    # Persist the seed those addresses came from, not just the addresses.
+    # An agent's address is a pure function of its seed, so recording only
+    # the address means a machine that loses its `.env` (which is
+    # git-ignored) generates a brand-new seed on the next start — silently
+    # changing the agent's identity, orphaning its Agentverse mailbox and
+    # every link that points at it.  With the seed in the file, the
+    # identity is recoverable: `base_seed()` falls back to it.
+    try:
+        data["base_seed"] = base_seed()
+    except Exception:  # pragma: no cover - defensive
+        pass
     _write(data)
 
 
@@ -216,7 +227,11 @@ def identity_summary() -> str:
     host = addresses.get("host")
     if not host:
         return "identity: not yet resolved"
-    shared = " (SHARED DEFAULT — set HOST_SEED to make it unique)" if (
-        base_seed() == LEGACY_HOST_SEED
-    ) else ""
-    return f"identity: {host}{shared}"
+    if base_seed() == LEGACY_HOST_SEED:
+        # This is the *published* demo identity: it is registered on
+        # Agentverse and printed in the README, the Devpost draft and the
+        # demo script.  It is shared on purpose — telling the operator to
+        # "make it unique" would orphan the mailbox and break every
+        # published link, so say the opposite.
+        return f"identity: {host} (published demo identity — keep HOST_SEED as it is)"
+    return f"identity: {host} (private to this machine)"

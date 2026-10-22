@@ -258,7 +258,8 @@ async def main() -> int:
         print("  ❌ payment was cancelled by the seller")
         code = 1
     else:
-        print("  ⚠️  no payment round-trip (is the Bureau running on :8001?)")
+        port = os.environ.get("HOST_PORT", "8001")
+        print(f"  ⚠️  no payment round-trip (is the Bureau running on :{port}?)")
         code = 1
     print("=" * 64)
 
